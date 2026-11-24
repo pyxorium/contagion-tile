@@ -4,8 +4,8 @@ A push-your-luck dice web tile: [House Dice](https://pyxorium.tngl.io/dicestreak
 seeded dice. Its rules run as a small WebAssembly engine, `engine/engine.wasm`, which the tile's page will
 play through and which any host can ask to check a saved game, so the host keeps no copy of the rules.
 
-**Status:** stage 1 (the engine) built Nov 24 2026. The tile's page, the lexicon, publishing and saving in
-Raku come next.
+**Status:** the engine (stage 1) and the tile's page (stage 2) built Nov 24 2026. Sounds, the lexicon,
+publishing and saving in Raku come next.
 
 ## The rules
 
@@ -60,6 +60,26 @@ A game alternates a keep, then roll or bank; a game that ends stuck ends on `rol
 home, hospital, water); `pass`; `score`; `resourceCount` (what was really kept, also on a fail);
 `fullSetBonus`; `exhaustionBonus`; `grid` (16 strings, row by row: a face, or `empty`).
 
+## The tile (`tile\`)
+
+What will be published as the web tile:
+
+- `index.html`: the game. It never decides anything itself: it asks the engine for the grid, what can be kept
+  and the result, and tells it each move. House Dice's Contagion look (the yellow room, the black board, the
+  tally, the cream dice, the spin, the red pulse for contamination, the calm pulse for a keep), at a quicker pace:
+  the spin 1.2 s, contamination 2.4 s, a keep 1.6 s, the buttons back after each pulse. The dice follow the
+  frame; in a short frame (a tile post's card) the buttons stand beside the grid. With reduced motion nothing
+  spins or pulses. Daily and Free play; after a daily game, Play again starts free play and the Daily button
+  shows the finished daily (a reload brings the daily back). How to play behind the "?".
+- `engine.wasm`, `engine.js`: exact copies of `engine\` (a test checks).
+- `contagion-record.js`: the record a finished game sends to save (the engine's own result) and the check a
+  host can run on one (`checkRecord`: ask the engine the standard question and compare every field).
+- `game-client.js`: an exact copy of the Game Host Kit's game helper (a test checks it against Prism's copy, and
+  against the kit when it's next to this folder).
+- `manifest.json` (name, description, 380 × 540), `icon.png` (256 px; the dice use the Noto Color Emoji font).
+
+For checks: `?seed=…` picks a free-play seed.
+
 ## Checks
 
 `npm test` (no packages needed; about 10 seconds): the engine asks for no imports; daily seeds match the
@@ -68,6 +88,16 @@ House Dice's odds; **100,000 games played side by side, engine and reference ide
 (illegal tries refused by both and changing nothing); every finished game checks to its own result, label
 and line; tampered, unfinished and malformed games refused; and ten copies of the engine, each with one rule
 broken, all caught (this one needs clang, and is skipped without it). `CONTAGION_GAMES=2000` for a quick run.
+
+`test/tile.test.mjs` (in `npm test`): the tile's copies, the manifest, the page's policy (no network), and 500
+games whose records check, with changed records refused.
+
+`python test/browser/check_tile.py` (Playwright with Chromium; about 4 minutes): the page on its own at four
+sizes (380 × 540, 340 × 300, 300 × 250, a phone), the pace, reduced motion, and in a stand-in host
+(`test/browser/host.html`, speaking the kit's messages and checking each game with the engine before asking): a
+daily game saved and checked again in Node, See it, the nudge after a daily, free play saved with its seed, a
+declined save, a tampered record refused, a host that doesn't save Contagion, a guest, How to play, and nothing
+fetched from outside.
 
 `npm run check-engine` rebuilds the engine to a temporary file and says whether it matches the committed
 one (needs clang 18.1.3). `npm run simulate` plays 30,000 games per bot through the engine.

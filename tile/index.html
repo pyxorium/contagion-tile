@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!--
+  Contagion: House Dice's push-your-luck dice game, as a web tile.
+
+  RULES: in engine.wasm (built from engine/contagion.c in pyxorium/contagion-tile). This page never decides
+  anything: it asks the engine for the grid, what can be kept and the result, and tells it each move. The record
+  it sends to save is the engine's own result, so a host can check a saved game by asking the very same engine.
+
+  DAILY AND FREE PLAY: the daily game's dice come from the day (the America/Denver day), the same for everyone;
+  free play picks a fresh random seed and keeps it with the game. After a daily game, Play again starts free play
+  and the Daily button shows the finished daily (a nudge, not a lock: a reload brings the daily back). Only the
+  looks (each die's tilt, landing spot and spin time) are truly random, and they never touch the rules.
+
+  LOOK: House Dice's Contagion (its colours, the tally, the grid, the spin, the pulses), at a quicker pace
+  (decision CT19): the spin 1.2 s, contamination pulses 2.4 s, a keep pulses 1.6 s; the buttons come back after
+  each pulse. With reduced motion, nothing spins or pulses: a short still highlight instead.
+
+  HOST: the Game Host Kit (game-client.js, an exact copy of the kit's). Who's playing and Save show only when the
+  host offers them; on its own the game just plays. The character spot (#character) is kept empty for now.
+
+  CSP: no network; WebAssembly allowed.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'self' blob: data: 'unsafe-inline' 'wasm-unsafe-eval'; script-src-attr 'none'; style-src 'self' blob: data: 'unsafe-inline'; form-action 'none'; manifest-src 'none'; object-src 'none'; base-uri 'none';">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contagion</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #F2C230; color: #1A1A1A;
+    font-family: "Work Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  :root { --die: 44px; --gap: 22px; --pad: 16px; --red-ms: 2400ms; --calm-ms: 1600ms; }
+  #app { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 6px 8px; }
+  .wide { width: max(calc(var(--die) * 4 + var(--gap) * 3 + var(--pad) * 2), min(100%, 340px)); }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 30px; flex: none; }
+  .title { font-family: Fraunces, Georgia, "Times New Roman", serif; font-weight: 700; font-size: 20px; line-height: 1; letter-spacing: 0.01em; }
+  .headRight { display: inline-flex; align-items: center; gap: 6px; }
+  .modes { display: inline-flex; border: 1px solid #1A1A1A55; border-radius: 999px; overflow: hidden; }
+  .modes button { appearance: none; border: 0; background: transparent; color: #4A3A00; font: inherit; font-size: 12px; padding: 4px 10px; cursor: pointer; }
+  .modes button[aria-pressed="true"] { background: #1A1A1A; color: #F2E8D5; }
+  .modes button:hover:not([aria-pressed="true"]) { color: #1A1A1A; background: #1A1A1A14; }
+  #helpBtn { appearance: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #1A1A1A55; background: transparent; color: #4A3A00; font: inherit; font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer; padding: 0; }
+  #helpBtn:hover, #helpBtn[aria-expanded="true"] { color: #1A1A1A; background: #1A1A1A14; }
+
+  /* House Dice's board, tally and grid; sizes follow the frame (layout()). */
+  #boardWrap { position: relative; flex: 0 1 auto; min-height: 0; display: flex; margin-top: 4px; }
+  .contagion-board { flex: 1; background: #141414; border: 1px solid #000; border-radius: 12px; padding: var(--pad); text-align: center; display: flex; flex-direction: column; justify-content: flex-start; }
+  .contagion-board.free { border-color: #4A90D9; box-shadow: 0 0 0 1px #4A90D9; }
+  .contagion-tally { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: #F2E8D5; margin-bottom: calc(var(--gap) * 1.1); white-space: nowrap; }
+  .contagion-count-red { color: #FF4A3C; font-weight: 700; }
+  .contagion-count-blue { color: #4A90D9; font-weight: 700; }
+  .contagion-count-yellow { color: #F2C230; font-weight: 700; }
+  .contagion-tally-divider { margin: 0 10px; color: rgba(255, 255, 255, 0.25); }
+  .contagion-grid { display: grid; grid-template-columns: repeat(4, var(--die)); grid-auto-rows: var(--die); gap: var(--gap); justify-content: center; margin-bottom: 10px; }
+  .contagion-die { width: var(--die); height: var(--die); border-radius: 16%; background: #F2E8D5; display: flex; align-items: center; justify-content: center; font-size: calc(var(--die) * 0.46); line-height: 1; position: relative; }
+  .contagion-die-blank { background: transparent; }
+  .contagion-die-used { opacity: 0.35; }
+  .contagion-below-grid { margin-top: auto; }
+  @keyframes contagion-count-glow-kf {
+    0% { filter: drop-shadow(0 0 0 currentColor); transform: scale(1); }
+    15% { filter: drop-shadow(0 0 6px currentColor); transform: scale(1.3); }
+    60% { filter: drop-shadow(0 0 6px currentColor); transform: scale(1.3); }
+    100% { filter: drop-shadow(0 0 0 currentColor); transform: scale(1); }
+  }
+  .contagion-count-glow { display: inline-block; animation: contagion-count-glow-kf 900ms ease; }
+  @keyframes contagion-pulse-red-kf {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(217, 53, 49, 0), 0 0 0 0 rgba(217, 53, 49, 0); }
+    7% { box-shadow: 0 0 3px 4px rgba(255, 70, 60, 1), 0 0 22px 8px rgba(255, 70, 60, 0.9); }
+    22% { box-shadow: 0 0 0 3px rgba(217, 53, 49, 0.1), 0 0 0 0 rgba(217, 53, 49, 0); }
+    36% { box-shadow: 0 0 3px 4px rgba(255, 70, 60, 1), 0 0 22px 8px rgba(255, 70, 60, 0.9); }
+    50% { box-shadow: 0 0 0 3px rgba(217, 53, 49, 0.1), 0 0 0 0 rgba(217, 53, 49, 0); }
+    64% { box-shadow: 0 0 3px 4px rgba(255, 70, 60, 1), 0 0 22px 8px rgba(255, 70, 60, 0.9); }
+    89% { box-shadow: 0 0 0 3px rgba(217, 53, 49, 0.08), 0 0 0 0 rgba(217, 53, 49, 0); }
+  }
+  .contagion-pulse-red { animation: contagion-pulse-red-kf var(--red-ms) ease; }
+  @keyframes contagion-pulse-calm-blue-kf {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(74, 144, 217, 0), 0 0 0 0 rgba(74, 144, 217, 0); }
+    10% { box-shadow: 0 0 3px 4px rgba(100, 170, 240, 1), 0 0 20px 7px rgba(100, 170, 240, 0.85); }
+    30% { box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.12), 0 0 0 0 rgba(74, 144, 217, 0); }
+    50% { box-shadow: 0 0 3px 4px rgba(100, 170, 240, 1), 0 0 20px 7px rgba(100, 170, 240, 0.85); }
+    75% { box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.08), 0 0 0 0 rgba(74, 144, 217, 0); }
+  }
+  .contagion-pulse-calm-blue { animation: contagion-pulse-calm-blue-kf var(--calm-ms) ease; }
+  @keyframes contagion-pulse-calm-yellow-kf {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(242, 194, 48, 0), 0 0 0 0 rgba(242, 194, 48, 0); }
+    10% { box-shadow: 0 0 3px 4px rgba(255, 210, 60, 1), 0 0 20px 7px rgba(255, 210, 60, 0.85); }
+    30% { box-shadow: 0 0 0 3px rgba(242, 194, 48, 0.12), 0 0 0 0 rgba(242, 194, 48, 0); }
+    50% { box-shadow: 0 0 3px 4px rgba(255, 210, 60, 1), 0 0 20px 7px rgba(255, 210, 60, 0.85); }
+    75% { box-shadow: 0 0 0 3px rgba(242, 194, 48, 0.08), 0 0 0 0 rgba(242, 194, 48, 0); }
+  }
+  .contagion-pulse-calm-yellow { animation: contagion-pulse-calm-yellow-kf var(--calm-ms) ease; }
+  @keyframes tumble-rotate { 0% { rotate: 0deg; } 85% { rotate: 372deg; } 100% { rotate: 360deg; } }
+  @keyframes tumble-pop { 0%, 85% { scale: 1; } 92% { scale: 1.12; } 100% { scale: 1; } }
+  .die-casting { animation: tumble-rotate 1s ease, tumble-pop 1s ease; }
+  .attempts { color: #F2E8D5; font-size: 13px; min-height: 18px; }
+  .contagion-take-row { display: flex; flex-wrap: wrap; column-gap: 7.5px; row-gap: 8px; justify-content: center; margin-top: 8px; min-height: 31px; }
+  .contagion-take-btn { appearance: none; background: transparent; color: #F2C230; border: 1px solid #F2C230; font: inherit; font-weight: 500; font-size: 12.5px; padding: 6px 13px; border-radius: 999px; cursor: pointer; }
+  .contagion-take-btn:hover { background: #F2C23022; }
+  .roll-btn { appearance: none; background: #F2C230; color: #1A1A1A; border: none; font: inherit; font-weight: 600; font-size: 14px; letter-spacing: 0.02em; padding: 7px 26px; border-radius: 999px; cursor: pointer; }
+  .roll-btn:hover { background: #FFD24A; }
+  .roll-btn.big { padding: 10px 40px; }
+  /* Short frames (a tile post's card): the buttons stand beside the grid instead of under it, and the hint line
+     goes, so the dice stay as big as the height allows. */
+  html.tight .contagion-board { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; column-gap: 10px; align-items: center; }
+  html.tight .contagion-tally { grid-column: 1 / 3; margin-bottom: 6px; }
+  html.tight .contagion-grid { margin-bottom: 0; }
+  html.tight .contagion-below-grid { margin-top: 0; }
+  html.tight .attempts { display: none; }
+  html.tight .contagion-take-row { flex-direction: column; align-items: stretch; margin-top: 0; row-gap: 5px; min-height: 0; }
+  html.tight .contagion-take-btn { font-size: 12px; padding: 4px 10px; }
+  html.tight .roll-btn { font-size: 13px; padding: 5px 12px; }
+  html.tight #hintRow { display: none; }
+
+  #endPanel { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 12px; background: #141414e6; text-align: center; padding: 8px; color: #F2E8D5; }
+  #endPanel[hidden] { display: none; }
+  #endLabel { font-size: 12px; color: #B8A868; letter-spacing: 0.03em; }
+  #endScore { font-size: clamp(26px, calc(var(--die) * 0.9), 44px); font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  #endScore.fail { color: #FF4A3C; }
+  #endOutcome { font-size: 13px; font-weight: 600; }
+  #endParts { font-size: 11px; font-family: "JetBrains Mono", ui-monospace, monospace; color: #9BB5A8; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
+  .actions button { appearance: none; font: inherit; font-size: 13px; color: #F2C230; background: transparent; border: 1px solid #F2C230; border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+  .actions button.main { background: #F2C230; color: #1A1A1A; font-weight: 600; }
+  .actions button:hover:not(:disabled) { background: #F2C23022; }
+  .actions button.main:hover:not(:disabled) { background: #FFD24A; }
+  .actions button:disabled { opacity: 0.6; cursor: default; }
+  .actions button[hidden] { display: none; }
+  #saveStatus { font-size: 12px; color: #B8A868; min-height: 16px; }
+  #saveStatus .ok { color: #F2E8D5; }
+  #saveNote { font-size: 12px; color: #B8A868; }
+  #saveNote[hidden] { display: none; }
+
+  #hintRow { font-size: 12px; color: #4A3A00; margin-top: 5px; min-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; flex: none; }
+  #bar { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 12px; color: #4A3A00; margin-top: 3px; min-height: 18px; flex: none; }
+  #who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #character:empty { display: none; }
+
+  #help { position: fixed; inset: 0; z-index: 10; display: flex; justify-content: center; background: #F2C230fa; overflow-y: auto; padding: 14px 16px 16px; }
+  #help[hidden] { display: none; }
+  #help .sheet { width: 100%; max-width: 380px; margin: auto 0; font-size: 13px; line-height: 1.45; color: #2A2200; }
+  #help h2 { font-size: 13px; font-weight: 700; color: #1A1A1A; margin: 10px 0 4px; }
+  #help h2:first-child { margin-top: 0; }
+  #help p { margin: 0 0 4px; }
+  #help .close { display: flex; justify-content: center; margin-top: 12px; }
+  #help .close button { appearance: none; font: inherit; font-size: 13px; color: #1A1A1A; background: transparent; border: 1.5px solid #1A1A1A66; border-radius: 999px; padding: 5px 18px; cursor: pointer; }
+
+  html.still .die-casting, html.still .contagion-count-glow { animation: none; }
+  html.still .contagion-pulse-red { animation: none; box-shadow: 0 0 0 3px #FF463C; }
+  html.still .contagion-pulse-calm-blue { animation: none; box-shadow: 0 0 0 3px #64AAF0; }
+  html.still .contagion-pulse-calm-yellow { animation: none; box-shadow: 0 0 0 3px #FFD23C; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="wide">
+    <div class="title">Contagion</div>
+    <div class="headRight">
+      <div class="modes" role="group" aria-label="Game">
+        <button type="button" id="dailyBtn" aria-pressed="true">Daily</button>
+        <button type="button" id="freeBtn" aria-pressed="false">Free play</button>
+      </div>
+      <button type="button" id="helpBtn" aria-label="How to play" aria-expanded="false" aria-controls="help" title="How to play">?</button>
+    </div>
+  </header>
+  <div id="boardWrap" class="wide">
+    <div id="board" class="contagion-board">
+      <div class="contagion-tally" id="tally" aria-label="Set aside"></div>
+      <div class="contagion-grid" id="grid" role="grid" aria-label="The dice"></div>
+      <div class="contagion-below-grid" id="below"></div>
+    </div>
+    <div id="endPanel" hidden>
+      <div id="endLabel"></div>
+      <div id="endScore"></div>
+      <div id="endOutcome"></div>
+      <div id="endParts"></div>
+      <div class="actions">
+        <button type="button" id="saveBtn" class="main" hidden>Save this game</button>
+        <button type="button" id="seeBtn" hidden>See it</button>
+        <button type="button" id="againBtn">Play again</button>
+      </div>
+      <div id="saveStatus" role="status" aria-live="polite"></div>
+      <div id="saveNote" hidden>This page doesn't save Contagion games.</div>
+    </div>
+  </div>
+  <div id="hintRow" class="wide"></div>
+  <div id="bar" class="wide">
+    <span id="character"></span>
+    <span id="who"></span>
+    <span id="dayLabel"></span>
+  </div>
+  <div id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+    <div class="sheet">
+      <h2 id="helpTitle">Object of the game</h2>
+      <p>Gather resources from 16 dice while keeping the contamination contained.</p>
+      <h2>How to play</h2>
+      <p>Roll all the dice. 🦠 contamination is always set aside and counted.</p>
+      <p>Then keep one type showing: ⚗️ defense (as often as you like), or 🏠 home, 🏥 hospital or 🚰 water (each only once a game). Every die of that type is set aside.</p>
+      <p>Then roll the dice that are left again, or bank.</p>
+      <p>The game ends when you bank, when the grid is empty, or when a roll leaves nothing you can keep.</p>
+      <h2>Score</h2>
+      <p>Contained (⚗️ at least as many as 🦠): one point per resource, +3 for all three types, +1 for emptying the grid; at least 1.</p>
+      <p>Not contained: 0. If a roll leaves nothing to keep: 1 if contained, otherwise 0.</p>
+      <p><b>Daily:</b> today's dice are the same for everyone. <b>Free play:</b> new dice every game.</p>
+      <p>A game from House Dice.</p>
+      <div class="close"><button type="button" id="helpClose">Close</button></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { loadEngine } from "./engine.js";
+import { recordFromEngine, COLLECTION } from "./contagion-record.js";
+import { connectToHost } from "./game-client.js";
+
+const $ = (id) => document.getElementById(id);
+const EMOJI = { contamination: "🦠", defense: "⚗️", home: "🏠", hospital: "🏥", water: "🚰" };
+// The pace (decision CT19): House Dice's spin, quicker pulses.
+const CAST_MS = 1200, RED_MS = 2400, CALM_MS = 1600, GLOW_MS = 900, STILL_MS = 500;
+const params = new URLSearchParams(location.search);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const still = () => reduceMotion.matches;
+function setStill() { document.documentElement.classList.toggle("still", still()); }
+reduceMotion.addEventListener("change", setStill);
+setStill();
+
+// ---- layout: the dice follow the frame ----
+function layout() {
+  const w = window.innerWidth - 16;
+  const h = window.innerHeight - 12 - 30 - 4 - 21;        // header, bar
+  const tight = h < 340;                                   // buttons beside the grid; no hint line
+  const pad = tight ? 8 : 16;
+  const gapRatio = tight ? 0.3 : 0.5;
+  const tall = tight ? 18 + 6 + 4 : 21 + 18 + 24 + 18 + 48 + 10;   // (hint line,) tally, (buttons,) room
+  const wide = tight ? 96 + 10 : 0;                                 // the buttons' column
+  const byWidth = (w - pad * 2 - 2 - wide) / (4 + 3 * gapRatio);
+  const byHeight = (h - pad * 2 - 2 - tall) / (4 + 3 * gapRatio);
+  const die = Math.max(18, Math.min(64, Math.floor(Math.min(byWidth, byHeight))));
+  const root = document.documentElement;
+  root.classList.toggle("tight", tight);
+  root.style.setProperty("--die", `${die}px`);
+  root.style.setProperty("--gap", `${Math.round(die * gapRatio)}px`);
+  root.style.setProperty("--pad", `${pad}px`);
+}
+window.addEventListener("resize", layout);
+layout();
+
+// ---- the America/Denver day ----
+function denverDay(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Denver", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+function shortDay(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+const engine = await loadEngine(await (await fetch("./engine.wasm")).arrayBuffer());
+
+// ---- what's on screen ----
+let mode = "daily";
+let game = null;            // { mode, day } or { mode, seed } once rolled
+let shown = null;           // { grid, kept, used } as displayed (lags the engine while a pulse plays)
+let pulse = null;           // { cells, cls }
+let casting = false;
+let glow = null;
+let looks = Array(16).fill(null);
+let pending = null;         // the pause in progress
+let dailyDone = null;       // this load's finished daily: { day, result, line, label, savedUri }
+let savedUri = null;
+let saving = false;
+
+const emptyKept = () => ({ contamination: 0, defense: 0, home: 0, hospital: 0, water: 0 });
+
+function pause(ms, then) {
+  if (still()) ms = Math.min(ms, STILL_MS);
+  pending = setTimeout(() => { pending = null; then(); }, ms);
+}
+function cancelPause() {
+  if (pending) clearTimeout(pending);
+  pending = null;
+}
+function flash(which) {
+  glow = which;
+  setTimeout(() => { if (glow === which) { glow = null; renderTally(); } }, GLOW_MS);
+}
+function showEngine() {
+  const s = engine.state();
+  shown = { grid: s.grid, kept: s.kept, used: s.used };
+  pulse = null;
+  casting = false;
+}
+
+function newBoard(m) {
+  cancelPause();
+  mode = m;
+  game = null;
+  shown = null;
+  pulse = null;
+  casting = false;
+  savedUri = null;
+  $("dailyBtn").setAttribute("aria-pressed", String(mode === "daily"));
+  $("freeBtn").setAttribute("aria-pressed", String(mode === "free"));
+  render();
+}
+
+function roll() {
+  if (mode === "daily") {
+    if (dailyDone && dailyDone.day === denverDay()) return render();
+    game = { mode: "daily", day: denverDay() };
+    engine.startDaily(game.day);
+  } else {
+    // ?seed=… (for checks) picks a free-play seed; otherwise a fresh random one.
+    const asked = Number(params.get("seed"));
+    game = { mode: "free", seed: params.has("seed") && Number.isInteger(asked) && asked >= 0 && asked <= 0xffffffff ? asked : crypto.getRandomValues(new Uint32Array(1))[0] };
+    engine.startFree(game.seed);
+  }
+  savedUri = null;
+  shown = { grid: Array(16).fill("defense"), kept: emptyKept(), used: [] };
+  showRoll();
+}
+
+// A roll as House Dice shows it: the dice spin and land, contamination pulses red, then it's set aside and counted.
+function showRoll() {
+  const s = engine.state();
+  shown.grid = s.lastRoll.map((f, i) => f || null);
+  looks = shown.grid.map((f) => (f == null ? null : {
+    tilt: Math.random() * 12 - 6,
+    dx: Math.round((Math.random() * 4 - 2) * 10) / 10,
+    dy: Math.round((Math.random() * 4 - 2) * 10) / 10,
+    ms: Math.round(850 + Math.random() * 300),
+  }));
+  casting = true;
+  pulse = null;
+  pause(CAST_MS, () => {
+    casting = false;
+    const cells = [];
+    s.lastRoll.forEach((f, i) => { if (f === "contamination") cells.push(i); });
+    if (!cells.length) { showEngine(); render(); return; }
+    pulse = { cells, cls: "contagion-pulse-red" };
+    pause(RED_MS, () => { showEngine(); flash("contamination"); render(); });
+    render();
+  });
+  render();
+}
+
+function act(move) {
+  if (pending || !game || engine.state().phase === "over") return;
+  if (move === "roll") {
+    if (!engine.move("roll")) return;
+    return showRoll();
+  }
+  if (move === "bank") {
+    if (!engine.move("bank")) return;
+    showEngine();
+    return render();
+  }
+  const cells = [];
+  shown.grid.forEach((f, i) => { if (f === move) cells.push(i); });
+  if (!engine.move(move)) return;
+  pulse = { cells, cls: move === "defense" ? "contagion-pulse-calm-blue" : "contagion-pulse-calm-yellow" };
+  pause(CALM_MS, () => { showEngine(); flash(move); render(); });
+  render();
+}
+
+function renderTally() {
+  const k = shown ? shown.kept : emptyKept();
+  const g = (f) => (glow === f ? " contagion-count-glow" : "");
+  $("tally").innerHTML =
+    `<span class="contagion-count-red${g("contamination")}">🦠</span> <span class="contagion-count-red">${k.contamination}</span> · ` +
+    `<span class="contagion-count-blue${g("defense")}">⚗️</span> <span class="contagion-count-blue">${k.defense}</span>` +
+    `<span class="contagion-tally-divider">│</span>` +
+    ["home", "hospital", "water"].map((f) => `<span class="contagion-count-yellow${g(f)}">${EMOJI[f]}</span> <span class="contagion-count-yellow">${k[f]}</span>`).join(" · ");
+  $("tally").setAttribute("aria-label", `contamination ${k.contamination}, defense ${k.defense}, home ${k.home}, hospital ${k.hospital}, water ${k.water}`);
+}
+
+function button(cls, move, text) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = cls;
+  b.dataset.move = move;
+  b.textContent = text;
+  b.addEventListener("click", () => act(move));
+  return b;
+}
+
+// How things stand, under the board: the tally says the same, this just says it in words.
+function standing(s) {
+  const margin = s.kept.defense - s.kept.contamination;
+  return margin >= 0 ? `contained so far (⚗️ ${s.kept.defense} vs 🦠 ${s.kept.contamination})` : `🦠 is ahead by ${-margin}`;
+}
+
+function render() {
+  const dailyShown = mode === "daily" && !game && dailyDone && dailyDone.day === denverDay();
+  $("board").classList.toggle("free", mode === "free");
+  $("dailyBtn").textContent = dailyDone && dailyDone.day === denverDay() ? "Daily ✓" : "Daily";
+  renderTally();
+
+  const grid = $("grid");
+  grid.replaceChildren();
+  for (let i = 0; i < 16; i++) {
+    const f = shown ? shown.grid[i] : null;
+    const d = document.createElement("div");
+    d.setAttribute("role", "gridcell");
+    d.dataset.cell = i;
+    d.className = "contagion-die" + (f == null ? " contagion-die-blank" : "") +
+      (pulse && pulse.cells.includes(i) ? ` ${pulse.cls}` : "") +
+      (f != null && shown.used.includes(f) ? " contagion-die-used" : "") +
+      (f != null && casting ? " die-casting" : "");
+    const look = looks[i];
+    if (f != null && look) {
+      d.style.transform = `rotate(${look.tilt}deg)`;
+      d.style.translate = `${look.dx}px ${look.dy}px`;
+      if (casting) d.style.animationDuration = `${look.ms}ms, ${look.ms}ms`;
+    }
+    d.textContent = f ? EMOJI[f] : "";
+    if (f) d.setAttribute("aria-label", f);
+    grid.append(d);
+  }
+
+  const below = $("below");
+  below.replaceChildren();
+  const s = game ? engine.state() : null;
+  const attempts = (text) => { const a = document.createElement("div"); a.className = "attempts"; a.textContent = text; return a; };
+  const row = (...items) => { const r = document.createElement("div"); r.className = "contagion-take-row"; r.append(...items); return r; };
+  let hint = "";
+  if (!game && !dailyShown) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "roll-btn big";
+    b.id = "rollBtn";
+    b.textContent = "Roll";
+    b.addEventListener("click", roll);
+    below.append(row(b));
+    hint = "🦠 is spreading · ⚗️ is your defense";
+  } else if (game && (pending || s.phase === "over")) {
+    below.append(attempts(" "), row());
+  } else if (game && s.phase === "keep") {
+    below.append(attempts("choose one type to keep"), row(...s.eligible.map((m) => button("contagion-take-btn", m, `${EMOJI[m]} keep`))));
+    hint = standing(s);
+  } else if (game) {
+    const left = s.grid.filter(Boolean).length;
+    below.append(attempts(`${left} ${left === 1 ? "die" : "dice"} left to roll`), row(button("roll-btn", "roll", "Roll again"), button("contagion-take-btn", "bank", "Bank")));
+    hint = standing(s);
+  }
+  $("hintRow").textContent = hint;
+  $("dayLabel").textContent = mode === "daily" ? `Daily · ${shortDay(game && game.day ? game.day : denverDay())}` : "Free play";
+
+  // The end of the game, laid over the board (or this load's finished daily, when Daily is chosen again).
+  const over = game && !pending && s.phase === "over";
+  const end = $("endPanel");
+  end.hidden = !(over || dailyShown);
+  if (over || dailyShown) {
+    const r = over ? engine.result() : dailyDone.result;
+    $("endLabel").textContent = over ? engine.label() : dailyDone.label;
+    $("endScore").textContent = String(r.score);
+    $("endScore").classList.toggle("fail", !r.pass);
+    $("endOutcome").textContent = r.pass ? "contained" : "containment failed";
+    const parts = [`${r.resourceCount} resource${r.resourceCount === 1 ? "" : "s"}`];
+    if (r.fullSetBonus) parts.push("full set +3");
+    if (r.exhaustionBonus) parts.push("all dice played +1");
+    if (r.ending === "stuck") parts.push("nothing left to keep");
+    $("endParts").textContent = parts.join(" · ");
+    if (over && game.mode === "daily" && (!dailyDone || dailyDone.day !== game.day)) {
+      dailyDone = { day: game.day, result: r, label: engine.label(), line: engine.line(), savedUri: null };
+      $("dailyBtn").textContent = "Daily ✓";
+    }
+    if (dailyShown) savedUri = dailyDone.savedUri;
+    $("hintRow").textContent = dailyShown ? "Today's daily: played. Free play is always open." : "";
+    updateSave();
+  }
+}
+
+// ---- the host ----
+const host = await connectToHost({ name: "contagion", timeoutMs: 0 });
+
+function finishedRecord() {
+  const dailyShown = mode === "daily" && !game && dailyDone;
+  return dailyShown ? dailyDone.result : recordFromEngine(engine);
+}
+function updateSave() {
+  const can = host.canSave(COLLECTION);
+  $("saveBtn").hidden = !can || !!savedUri;
+  $("saveBtn").disabled = saving;
+  $("seeBtn").hidden = !savedUri;
+  $("saveNote").hidden = !(host.offers("save") && !can);
+  if (!savedUri && !saving) $("saveStatus").textContent = "";
+}
+host.on("offers", () => { if (!$("endPanel").hidden) updateSave(); });
+host.on("player", (p) => { $("who").textContent = p ? `Playing as @${p.handle || p.did}` : "Playing as a guest"; });
+// The character spot (#character) is kept for later; Contagion doesn't show a character yet.
+
+$("saveBtn").addEventListener("click", async () => {
+  if (saving) return;
+  const record = finishedRecord();
+  if (!record) return;
+  saving = true;
+  updateSave();
+  const say = (html) => { $("saveStatus").innerHTML = html; };
+  say("Waiting for the host…");
+  const r = await host.save({ collection: COLLECTION, record, onStatus: (st) => say(st === "asking" ? "Waiting for you to allow it…" : "Saving…") });
+  saving = false;
+  if (r.ok) {
+    savedUri = r.uri;
+    if (record.mode === "daily" && dailyDone && dailyDone.day === record.day) dailyDone.savedUri = r.uri;
+    updateSave();
+    say(`<span class="ok">Saved to @${(r.handle || "your").replace(/[<>&"]/g, "")}'s account ✓</span>`);
+    return;
+  }
+  updateSave();
+  say({ declined: "Not saved.", "not-allowed": "This page can't save this game.", invalid: "The page couldn't accept this game.", failed: "Couldn't save. Try again." }[r.error] || "Couldn't save.");
+});
+$("seeBtn").addEventListener("click", () => { if (savedUri) host.openRecord(savedUri); });
+// Play again: after a daily, free play (the nudge, decision CT16); otherwise the same mode.
+$("againBtn").addEventListener("click", () => newBoard(mode === "daily" ? "free" : mode));
+$("dailyBtn").addEventListener("click", () => newBoard("daily"));
+$("freeBtn").addEventListener("click", () => newBoard("free"));
+
+function showHelp(open) {
+  $("help").hidden = !open;
+  $("helpBtn").setAttribute("aria-expanded", String(open));
+  (open ? $("helpClose") : $("helpBtn")).focus();
+}
+$("helpBtn").addEventListener("click", () => showHelp($("help").hidden));
+$("helpClose").addEventListener("click", () => showHelp(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("help").hidden) showHelp(false); });
+
+render();
+</script>
+</body>
+</html>

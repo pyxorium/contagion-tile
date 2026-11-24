@@ -1,0 +1,5 @@
+{
+  "name": "Contagion",
+  "description": "A push-your-luck dice game: keep the contamination contained while you gather resources from 16 dice. A daily game with the same dice for everyone, and free play. A game from House Dice; its rules run as a WebAssembly engine any host can ask to check a saved game.",
+  "sizing": { "width": 380, "height": 540 }
+}

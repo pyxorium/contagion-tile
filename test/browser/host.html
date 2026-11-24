@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contagion in a stand-in host</title>
+<style>
+  :root { color-scheme: dark; font: 14px/1.45 system-ui, sans-serif; background: #15171d; color: #ddd; }
+  body { margin: 0; padding: 12px; }
+  .stage { display: flex; gap: 12px; align-items: flex-start; }
+  iframe { width: 380px; height: 540px; border: 1px solid #fff3; border-radius: 10px; background: #F2C230; flex: none; }
+  .log { font: 11px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; height: 540px; overflow: auto; flex: 1; margin: 0; }
+  dialog { max-width: 460px; } dialog pre { font-size: 11px; max-height: 220px; overflow: auto; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <iframe id="game" title="Contagion"></iframe>
+  <pre class="log" id="log"></pre>
+</div>
+<dialog id="ask"><form method="dialog">
+  <p id="askText"></p><p id="askCheck"></p><pre id="askRecord"></pre>
+  <button value="no">No</button> <button value="yes">Save it</button>
+</form></dialog>
+<script type="module">
+// A stand-in host for Contagion's checks. It speaks the Game Host Kit's messages (version 1, as game-client.js
+// expects them) in a plain iframe, and checks each game by asking the tile's own engine the standard question
+// before asking the player, as Raku will.
+//   ?save=0  a host that saves for other games but not Contagion       ?who=none  no one signed in
+//   ?tile=…  extra query for the tile page (e.g. seed=5)
+import { loadEngine } from "/tile/engine.js";
+import { checkRecord, COLLECTION } from "/tile/contagion-record.js";
+
+const params = new URLSearchParams(location.search);
+const TILE = { uri: "at://did:plc:standinstandinstandinst/ing.dasl.masl/3contagionstandin", cid: "bafyreicontagionstandinversion" };
+const PLAYER = params.get("who") === "none" ? null : { did: "did:plc:aliceexamplealiceexample", handle: "alice.example" };
+const engine = await loadEngine(await (await fetch("/tile/engine.wasm")).arrayBuffer());
+const frame = document.getElementById("game");
+const logBox = document.getElementById("log");
+window.saved = [];
+window.messages = [];
+const log = (dir, p) => { window.messages.push({ dir, ...p }); logBox.textContent += `${dir === "in" ? "game → host" : "host → game"}  ${JSON.stringify(p)}\n`; };
+const send = (p) => { log("out", p); frame.contentWindow.postMessage(p, "*"); };
+
+window.addEventListener("message", (e) => {
+  if (e.source !== frame.contentWindow || !e.data || typeof e.data !== "object") return;
+  const m = e.data;
+  log("in", m);
+  if (m.kind === "hello") {
+    send({ kind: "host", v: 1, offers: ["player", "save", "open-record"] });
+    send(PLAYER ? { kind: "player", did: PLAYER.did, handle: PLAYER.handle } : { kind: "player", did: null });
+    send({ kind: "can-save", collections: params.get("save") === "0" ? ["com.example.other"] : [COLLECTION] });
+  } else if (m.kind === "open-record") {
+    window.opened = m.uri;
+  } else if (m.kind === "write-record") {
+    const result = (r) => send({ kind: "write-record-result", id: m.id, ...r });
+    if (m.collection !== COLLECTION || params.get("save") === "0") return result({ ok: false, error: "not-allowed" });
+    if (!PLAYER) return result({ ok: false, error: "declined" });
+    const check = checkRecord(engine, m.record);
+    if (!check.ok) { window.lastRefusal = check.problem; return result({ ok: false, error: "invalid" }); }
+    const full = { $type: COLLECTION, ...m.record, game: TILE, createdAt: new Date().toISOString() };
+    send({ kind: "write-record-status", id: m.id, state: "asking" });
+    const ask = document.getElementById("ask");
+    document.getElementById("askText").textContent = `Save this to @${PLAYER.handle}'s account?`;
+    document.getElementById("askCheck").textContent = `Checked by the game's engine: ${check.line} ✓`;
+    document.getElementById("askRecord").textContent = JSON.stringify(full, null, 2);
+    ask.addEventListener("close", function done() {
+      ask.removeEventListener("close", done);
+      if (ask.returnValue !== "yes") return result({ ok: false, error: "declined" });
+      send({ kind: "write-record-status", id: m.id, state: "saving" });
+      const uri = `at://${PLAYER.did}/${COLLECTION}/3save${window.saved.length + 1}`;
+      window.saved.push({ uri, record: full });
+      setTimeout(() => result({ ok: true, uri, handle: PLAYER.handle }), 200);
+    });
+    ask.showModal();
+  }
+});
+frame.src = "/tile/index.html" + (params.get("tile") ? `?${params.get("tile")}` : "");
+</script>
+</body>
+</html>
