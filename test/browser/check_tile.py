@@ -87,6 +87,76 @@ with sync_playwright() as p:
         check(f"{name}: no page errors", not errors, errors)
         pg.close()
 
+    # ---- the buttons always fit, even with wide emoji (as on Windows), and the dice keep one size ----
+    WIDE = "document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.textContent = '.contagion-take-btn { padding-left: 30px !important; padding-right: 30px !important; }'; document.head.append(st); });"
+    for (w, h, name) in [(380, 540, "tile"), (340, 300, "card"), (300, 250, "small-card"), (390, 844, "phone")]:
+        for wide in (False, True):
+            pg = browser.new_page(viewport={"width": w, "height": h})
+            if wide:
+                pg.add_init_script(WIDE)
+            label = f"{name}{' (wide buttons)' if wide else ''}"
+            pg.goto(f"{BASE}/tile/index.html?seed=1")          # seed 1 opens with all four types to keep
+            pg.click("#freeBtn")
+            pg.click("#rollBtn")
+            pg.wait_for_selector("#below button[data-move]", timeout=8000)
+            info = pg.evaluate("""() => { const b = document.querySelector('#board').getBoundingClientRect();
+              const btns = [...document.querySelectorAll('#below button[data-move]')].map((e) => e.getBoundingClientRect());
+              return { count: btns.length, inside: btns.every((r) => r.left >= b.left - 0.5 && r.right <= b.right + 0.5 && r.top >= b.top - 0.5 && r.bottom <= b.bottom + 0.5),
+                       inFrame: document.querySelector('#bar').getBoundingClientRect().bottom <= innerHeight + 0.5,
+                       die: document.querySelector('.contagion-die').getBoundingClientRect().width }; }""")
+            check(f"buttons: {label}: four keep buttons, all inside the board, all in the frame", info["count"] == 4 and info["inside"] and info["inFrame"], info)
+            if wide and name == "tile":
+                pg.screenshot(path=os.path.join(SHOTS, "tile-wide-buttons.png"))
+            pg.locator('#below button[data-move="defense"]').click()
+            pg.wait_for_selector('#below button[data-move="roll"]', timeout=5000)
+            die2 = pg.evaluate("() => document.querySelector('.contagion-die').getBoundingClientRect().width")
+            check(f"buttons: {label}: the dice keep their size from keep to roll ({info['die']:.0f} px)", abs(die2 - info["die"]) < 0.5, die2)
+            pg.close()
+
+    # ---- the stuck ending: a beat that says so, then the result says why ----
+    def play_to_stuck(seed):
+        pg = browser.new_page(viewport={"width": 380, "height": 540})
+        pg.goto(f"{BASE}/tile/index.html?seed={seed}")
+        pg.click("#freeBtn")
+        pg.click("#rollBtn")
+        seen = False
+        t0 = time.time()
+        while time.time() - t0 < 60 and not pg.locator("#endPanel").is_visible():
+            if pg.locator(".stuck-msg").count() and pg.locator("#grid .contagion-die:not(.contagion-die-blank)").count():
+                seen = seen or (pg.locator(".stuck-msg").inner_text() == "Nothing left to keep: the game is over"
+                                and pg.locator("#grid .contagion-die-used").count() > 0 and not pg.locator("#endPanel").is_visible())
+            btns = pg.locator("#below button[data-move]")
+            if btns.count():
+                m = "roll" if pg.locator('#below button[data-move="roll"]').count() else btns.first.get_attribute("data-move")
+                try: pg.locator(f'#below button[data-move="{m}"]').click(timeout=1500)
+                except Exception: pass
+            time.sleep(0.05)
+        return pg, seen
+    pg, seen = play_to_stuck(4932)            # ends stuck with dice left on the grid, 🦠 ahead after the last roll
+    check("stuck: 'Nothing left to keep: the game is over' with the dice dimmed, before the result", seen)
+    why = pg.locator("#endWhy").inner_text()
+    check("stuck: a fail says 🦠 got ahead on the last roll", "got ahead on the last roll" in why and pg.locator("#endScore").inner_text() == "0", why)
+    pg.screenshot(path=os.path.join(SHOTS, "stuck-fail.png"))
+    pg.close()
+    pg, seen = play_to_stuck(19)              # ends stuck with dice left, still contained
+    why = pg.locator("#endWhy").inner_text()
+    check("stuck: contained scores 1 and says so", seen and pg.locator("#endScore").inner_text() == "1" and "1 point for keeping it contained" in why, why)
+    pg.close()
+    pg = browser.new_page(viewport={"width": 380, "height": 540})
+    pg.goto(f"{BASE}/tile/index.html?seed=458")  # its last roll is a single 🦠: the grid empties
+    pg.click("#freeBtn"); pg.click("#rollBtn")
+    msgs = set()
+    t0 = time.time()
+    while time.time() - t0 < 60 and not pg.locator("#endPanel").is_visible():
+        if pg.locator(".stuck-msg").count(): msgs.add(pg.locator(".stuck-msg").inner_text())
+        if pg.locator("#below button[data-move]").count():
+            m = "roll" if pg.locator('#below button[data-move="roll"]').count() else pg.locator("#below button[data-move]").first.get_attribute("data-move")
+            try: pg.locator(f'#below button[data-move="{m}"]').click(timeout=1500)
+            except Exception: pass
+        time.sleep(0.05)
+    check("stuck: a last roll of only 🦠 says 'Only 🦠 came up: the game is over'", "Only 🦠 came up: the game is over" in msgs, msgs)
+    pg.close()
+
     # ---- the pace (CT19): spin, red pulse, calm pulse; buttons hidden while they play ----
     pg = browser.new_page(viewport={"width": 380, "height": 540})
     watch(pg)
@@ -223,7 +293,7 @@ with sync_playwright() as p:
     pg = browser.new_page(viewport={"width": 300, "height": 250})
     pg.goto(f"{BASE}/tile/index.html")
     pg.click("#helpBtn")
-    check("help: How to play opens", pg.locator("#help").is_visible() and "nothing you can keep" in pg.locator("#help").inner_text())
+    check("help: How to play opens, with the owner's object line", pg.locator("#help").is_visible() and "nothing you can keep" in pg.locator("#help").inner_text() and "Keep the contamination contained while protecting resources." in pg.locator("#help").inner_text())
     pg.screenshot(path=os.path.join(SHOTS, "help-small.png"))
     pg.keyboard.press("Escape")
     check("help: Escape closes it", not pg.locator("#help").is_visible())

@@ -124,6 +124,9 @@
   #endScore { font-size: clamp(26px, calc(var(--die) * 0.9), 44px); font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
   #endScore.fail { color: #FF4A3C; }
   #endOutcome { font-size: 13px; font-weight: 600; }
+  #endWhy { font-size: 12px; color: #F2E8D5; max-width: 30ch; }
+  #endWhy[hidden] { display: none; }
+  .stuck-msg { color: #FF8A7E; font-size: 13px; font-weight: 600; min-height: 18px; padding: 4px 0; }
   #endParts { font-size: 11px; font-family: "JetBrains Mono", ui-monospace, monospace; color: #9BB5A8; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
   .actions button { appearance: none; font: inherit; font-size: 13px; color: #F2C230; background: transparent; border: 1px solid #F2C230; border-radius: 999px; padding: 5px 14px; cursor: pointer; }
@@ -179,6 +182,7 @@
       <div id="endLabel"></div>
       <div id="endScore"></div>
       <div id="endOutcome"></div>
+      <div id="endWhy" hidden></div>
       <div id="endParts"></div>
       <div class="actions">
         <button type="button" id="saveBtn" class="main" hidden>Save this game</button>
@@ -198,7 +202,7 @@
   <div id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
     <div class="sheet">
       <h2 id="helpTitle">Object of the game</h2>
-      <p>Gather resources from 16 dice while keeping the contamination contained.</p>
+      <p>Keep the contamination contained while protecting resources.</p>
       <h2>How to play</h2>
       <p>Roll all the dice. 🦠 contamination is always set aside and counted.</p>
       <p>Then keep one type showing: ⚗️ defense (as often as you like), or 🏠 home, 🏥 hospital or 🚰 water (each only once a game). Every die of that type is set aside.</p>
@@ -231,25 +235,65 @@ reduceMotion.addEventListener("change", setStill);
 setStill();
 
 // ---- layout: the dice follow the frame ----
+// The keep buttons are measured in the real font (emoji are wider on some systems, e.g. Windows), as four of them
+// (the most a turn can offer), so the dice keep one size all game and the buttons always fit: on one row or two
+// under the grid, or in a column beside it in a short frame. fit() then shrinks the dice if anything still sticks out.
+function measureButtons(tight, rowWidth) {
+  const probe = document.createElement("div");
+  probe.className = "contagion-take-row";
+  probe.style.cssText = `position: absolute; visibility: hidden; left: -9999px; top: 0; width: ${tight ? "auto" : `${rowWidth}px`};`;
+  for (const f of ["defense", "home", "hospital", "water"]) {
+    const b = document.createElement("button");
+    b.className = "contagion-take-btn";
+    b.textContent = `${EMOJI[f]} keep`;
+    probe.append(b);
+  }
+  const roll = document.createElement("button");
+  roll.className = "roll-btn";
+  roll.textContent = "Roll again";
+  probe.append(roll);
+  document.body.append(probe);
+  const height = probe.offsetHeight - (tight ? 0 : roll.offsetHeight + 8);   // the four keeps (Roll again sits with Bank)
+  const width = Math.max(...[...probe.children].map((b) => b.offsetWidth));
+  probe.remove();
+  return { height: Math.max(height, 26), width };
+}
+
+let dieSize = 44, gapRatio = 0.5;
+function setDie(die) {
+  dieSize = die;
+  const root = document.documentElement;
+  root.style.setProperty("--die", `${die}px`);
+  root.style.setProperty("--gap", `${Math.round(die * gapRatio)}px`);
+}
 function layout() {
   const w = window.innerWidth - 16;
   const h = window.innerHeight - 12 - 30 - 4 - 21;        // header, bar
   const tight = h < 340;                                   // buttons beside the grid; no hint line
   const pad = tight ? 8 : 16;
-  const gapRatio = tight ? 0.3 : 0.5;
-  const tall = tight ? 18 + 6 + 4 : 21 + 18 + 24 + 18 + 48 + 10;   // (hint line,) tally, (buttons,) room
-  const wide = tight ? 96 + 10 : 0;                                 // the buttons' column
-  const byWidth = (w - pad * 2 - 2 - wide) / (4 + 3 * gapRatio);
-  const byHeight = (h - pad * 2 - 2 - tall) / (4 + 3 * gapRatio);
-  const die = Math.max(18, Math.min(64, Math.floor(Math.min(byWidth, byHeight))));
+  gapRatio = tight ? 0.3 : 0.5;
   const root = document.documentElement;
   root.classList.toggle("tight", tight);
-  root.style.setProperty("--die", `${die}px`);
-  root.style.setProperty("--gap", `${Math.round(die * gapRatio)}px`);
   root.style.setProperty("--pad", `${pad}px`);
+  const buttons = measureButtons(tight, w - pad * 2 - 2);
+  const tall = tight ? 18 + 6 + 4 : 21 + 18 + 24 + 18 + 8 + buttons.height + 10;   // (hint line,) tally, (attempts, buttons,) room
+  const wide = tight ? buttons.width + 10 : 0;                                        // the buttons' column
+  const byWidth = (w - pad * 2 - 2 - wide) / (4 + 3 * gapRatio);
+  const byHeight = (h - pad * 2 - 2 - tall) / (4 + 3 * gapRatio);
+  setDie(Math.max(16, Math.min(64, Math.floor(Math.min(byWidth, byHeight)))));
 }
-window.addEventListener("resize", layout);
+function overflowing() {
+  const board = $("board"), app = $("app");
+  return board.scrollHeight > board.clientHeight + 1 || app.scrollHeight > app.clientHeight + 1 ||
+    document.documentElement.scrollWidth > window.innerWidth + 1;
+}
+function fit() {
+  for (let n = 0; n < 20 && dieSize > 16 && overflowing(); n++) setDie(dieSize - 2);
+}
+let ready = false;          // render() waits for the engine and the host
+window.addEventListener("resize", () => { layout(); if (ready) render(); });
 layout();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { layout(); if (ready) render(); });
 
 // ---- the America/Denver day ----
 function denverDay(date = new Date()) {
@@ -271,6 +315,9 @@ let casting = false;
 let glow = null;
 let looks = Array(16).fill(null);
 let pending = null;         // the pause in progress
+let stuckBeat = false;      // the moment a roll leaves nothing to keep, before the result
+let marginBefore = 0;       // defense minus contamination before the latest roll
+const STUCK_MS = 1600;
 let dailyDone = null;       // this load's finished daily: { day, result, line, label, savedUri }
 let savedUri = null;
 let saving = false;
@@ -303,6 +350,7 @@ function newBoard(m) {
   shown = null;
   pulse = null;
   casting = false;
+  stuckBeat = false;
   savedUri = null;
   $("dailyBtn").setAttribute("aria-pressed", String(mode === "daily"));
   $("freeBtn").setAttribute("aria-pressed", String(mode === "free"));
@@ -321,6 +369,7 @@ function roll() {
     engine.startFree(game.seed);
   }
   savedUri = null;
+  marginBefore = 0;
   shown = { grid: Array(16).fill("defense"), kept: emptyKept(), used: [] };
   showRoll();
 }
@@ -341,18 +390,29 @@ function showRoll() {
     casting = false;
     const cells = [];
     s.lastRoll.forEach((f, i) => { if (f === "contamination") cells.push(i); });
-    if (!cells.length) { showEngine(); render(); return; }
+    if (!cells.length) { showEngine(); afterRoll(); return; }
     pulse = { cells, cls: "contagion-pulse-red" };
-    pause(RED_MS, () => { showEngine(); flash("contamination"); render(); });
+    pause(RED_MS, () => { showEngine(); flash("contamination"); afterRoll(); });
     render();
   });
+  render();
+}
+
+// After a roll is resolved: if nothing can be kept, a short beat that says so before the result (decision CT13).
+function afterRoll() {
+  if (engine.state().ending === "stuck") {
+    stuckBeat = true;
+    pause(STUCK_MS, () => { stuckBeat = false; render(); });
+  }
   render();
 }
 
 function act(move) {
   if (pending || !game || engine.state().phase === "over") return;
   if (move === "roll") {
+    const before = engine.state().kept;
     if (!engine.move("roll")) return;
+    marginBefore = before.defense - before.contamination;
     return showRoll();
   }
   if (move === "bank") {
@@ -389,6 +449,15 @@ function button(cls, move, text) {
   return b;
 }
 
+// Why the game ended as it did, in a line (only when it isn't plain: a stuck end, or a fail).
+function whyText(r) {
+  if (r.ending === "stuck") {
+    if (r.pass) return "Nothing left to keep: 1 point for keeping it contained.";
+    return marginBefore >= 0 ? "🦠 got ahead on the last roll, with nothing left to keep." : "Nothing left to keep, and 🦠 is ahead of ⚗️.";
+  }
+  return r.pass ? "" : "🦠 outnumbered ⚗️.";
+}
+
 // How things stand, under the board: the tally says the same, this just says it in words.
 function standing(s) {
   const margin = s.kept.defense - s.kept.contamination;
@@ -410,7 +479,7 @@ function render() {
     d.dataset.cell = i;
     d.className = "contagion-die" + (f == null ? " contagion-die-blank" : "") +
       (pulse && pulse.cells.includes(i) ? ` ${pulse.cls}` : "") +
-      (f != null && shown.used.includes(f) ? " contagion-die-used" : "") +
+      (f != null && (stuckBeat || shown.used.includes(f)) ? " contagion-die-used" : "") +
       (f != null && casting ? " die-casting" : "");
     const look = looks[i];
     if (f != null && look) {
@@ -438,6 +507,12 @@ function render() {
     b.addEventListener("click", roll);
     below.append(row(b));
     hint = "🦠 is spreading · ⚗️ is your defense";
+  } else if (game && stuckBeat) {
+    const msg = document.createElement("div");
+    msg.className = "stuck-msg";
+    msg.setAttribute("role", "status");
+    msg.textContent = shown.grid.some(Boolean) ? "Nothing left to keep: the game is over" : "Only 🦠 came up: the game is over";
+    below.append(msg);
   } else if (game && (pending || s.phase === "over")) {
     below.append(attempts(" "), row());
   } else if (game && s.phase === "keep") {
@@ -461,19 +536,22 @@ function render() {
     $("endScore").textContent = String(r.score);
     $("endScore").classList.toggle("fail", !r.pass);
     $("endOutcome").textContent = r.pass ? "contained" : "containment failed";
+    const why = over ? whyText(r) : dailyDone.why;
+    $("endWhy").textContent = why;
+    $("endWhy").hidden = !why;
     const parts = [`${r.resourceCount} resource${r.resourceCount === 1 ? "" : "s"}`];
     if (r.fullSetBonus) parts.push("full set +3");
     if (r.exhaustionBonus) parts.push("all dice played +1");
-    if (r.ending === "stuck") parts.push("nothing left to keep");
     $("endParts").textContent = parts.join(" · ");
     if (over && game.mode === "daily" && (!dailyDone || dailyDone.day !== game.day)) {
-      dailyDone = { day: game.day, result: r, label: engine.label(), line: engine.line(), savedUri: null };
+      dailyDone = { day: game.day, result: r, label: engine.label(), line: engine.line(), why: whyText(r), savedUri: null };
       $("dailyBtn").textContent = "Daily ✓";
     }
     if (dailyShown) savedUri = dailyDone.savedUri;
     $("hintRow").textContent = dailyShown ? "Today's daily: played. Free play is always open." : "";
     updateSave();
   }
+  fit();
 }
 
 // ---- the host ----
@@ -530,6 +608,7 @@ $("helpBtn").addEventListener("click", () => showHelp($("help").hidden));
 $("helpClose").addEventListener("click", () => showHelp(false));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("help").hidden) showHelp(false); });
 
+ready = true;
 render();
 </script>
 </body>
