@@ -1,0 +1,12 @@
+{
+  "name": "contagion-tile",
+  "private": true,
+  "description": "Contagion, a push-your-luck dice web tile whose rules run as a WebAssembly engine any host can ask to check a game.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build-engine": "node scripts/build-engine.mjs",
+    "check-engine": "node scripts/build-engine.mjs --check",
+    "simulate": "node scripts/simulate.mjs"
+  }
+}
