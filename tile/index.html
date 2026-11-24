@@ -18,6 +18,11 @@
   (decision CT19): the spin 1.2 s, contamination pulses 2.4 s, a keep pulses 1.6 s; the buttons come back after
   each pulse. With reduced motion, nothing spins or pulses: a short still highlight instead.
 
+  SOUND (stage 2b): Web Audio notes, no sound files (Cosmic Junkyard's engine, between the SOUND ENGINE lines;
+  tools/sound-tuning.html plays and adjusts them): a rattle on each roll, a low throb with each red pulse, a glassy
+  chime for a defense keep, a warm one for a resource, a brighter run for the full set, a chord on bank, and a rising,
+  falling or deflating end (contained, failed, nothing left to keep). On by default; the speaker in the bar mutes it.
+
   HOST: the Game Host Kit (game-client.js, an exact copy of the kit's). Who's playing and Save show only when the
   host offers them; on its own the game just plays. The character spot (#character) is kept empty for now.
 
@@ -53,11 +58,11 @@
   #boardWrap { position: relative; flex: 0 1 auto; min-height: 0; display: flex; margin-top: 4px; }
   .contagion-board { flex: 1; background: #141414; border: 1px solid #000; border-radius: 12px; padding: var(--pad); text-align: center; display: flex; flex-direction: column; justify-content: flex-start; }
   .contagion-board.free { border-color: #4A90D9; box-shadow: 0 0 0 1px #4A90D9; }
-  .contagion-tally { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: #F2E8D5; margin-bottom: calc(var(--gap) * 1.1); white-space: nowrap; }
+  .contagion-tally { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: max(11px, calc(var(--die) * 0.273)); color: #F2E8D5; margin-bottom: calc(var(--gap) * 1.1); white-space: nowrap; }
   .contagion-count-red { color: #FF4A3C; font-weight: 700; }
   .contagion-count-blue { color: #4A90D9; font-weight: 700; }
   .contagion-count-yellow { color: #F2C230; font-weight: 700; }
-  .contagion-tally-divider { margin: 0 10px; color: rgba(255, 255, 255, 0.25); }
+  .contagion-tally-divider { margin: 0 calc(var(--die) * 0.23); color: rgba(255, 255, 255, 0.25); }
   .contagion-grid { display: grid; grid-template-columns: repeat(4, var(--die)); grid-auto-rows: var(--die); gap: var(--gap); justify-content: center; margin-bottom: 10px; }
   .contagion-die { width: var(--die); height: var(--die); border-radius: 16%; background: #F2E8D5; display: flex; align-items: center; justify-content: center; font-size: calc(var(--die) * 0.46); line-height: 1; position: relative; }
   .contagion-die-blank { background: transparent; }
@@ -99,13 +104,13 @@
   @keyframes tumble-rotate { 0% { rotate: 0deg; } 85% { rotate: 372deg; } 100% { rotate: 360deg; } }
   @keyframes tumble-pop { 0%, 85% { scale: 1; } 92% { scale: 1.12; } 100% { scale: 1; } }
   .die-casting { animation: tumble-rotate 1s ease, tumble-pop 1s ease; }
-  .attempts { color: #F2E8D5; font-size: 13px; min-height: 18px; }
+  .attempts { color: #F2E8D5; font-size: max(12px, calc(var(--die) * 0.295)); min-height: 1.4em; }
   .contagion-take-row { display: flex; flex-wrap: wrap; column-gap: 7.5px; row-gap: 8px; justify-content: center; margin-top: 8px; min-height: 31px; }
-  .contagion-take-btn { appearance: none; background: transparent; color: #F2C230; border: 1px solid #F2C230; font: inherit; font-weight: 500; font-size: 12.5px; padding: 6px 13px; border-radius: 999px; cursor: pointer; }
+  .contagion-take-btn { appearance: none; background: transparent; color: #F2C230; border: 1px solid #F2C230; font: inherit; font-weight: 500; font-size: max(11.5px, calc(var(--die) * 0.284)); padding: max(4px, calc(var(--die) * 0.136)) max(10px, calc(var(--die) * 0.295)); border-radius: 999px; cursor: pointer; }
   .contagion-take-btn:hover { background: #F2C23022; }
-  .roll-btn { appearance: none; background: #F2C230; color: #1A1A1A; border: none; font: inherit; font-weight: 600; font-size: 14px; letter-spacing: 0.02em; padding: 7px 26px; border-radius: 999px; cursor: pointer; }
+  .roll-btn { appearance: none; background: #F2C230; color: #1A1A1A; border: none; font: inherit; font-weight: 600; font-size: max(12.5px, calc(var(--die) * 0.318)); letter-spacing: 0.02em; padding: max(5px, calc(var(--die) * 0.16)) max(16px, calc(var(--die) * 0.59)); border-radius: 999px; cursor: pointer; }
   .roll-btn:hover { background: #FFD24A; }
-  .roll-btn.big { padding: 10px 40px; }
+  .roll-btn.big { padding: max(8px, calc(var(--die) * 0.23)) max(30px, calc(var(--die) * 0.9)); }
   /* Short frames (a tile post's card): the buttons stand beside the grid instead of under it, and the hint line
      goes, so the dice stay as big as the height allows. */
   html.tight .contagion-board { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; column-gap: 10px; align-items: center; }
@@ -114,8 +119,8 @@
   html.tight .contagion-below-grid { margin-top: 0; }
   html.tight .attempts { display: none; }
   html.tight .contagion-take-row { flex-direction: column; align-items: stretch; margin-top: 0; row-gap: 5px; min-height: 0; }
-  html.tight .contagion-take-btn { font-size: 12px; padding: 4px 10px; }
-  html.tight .roll-btn { font-size: 13px; padding: 5px 12px; }
+  html.tight .contagion-take-btn { padding: 4px 10px; }
+  html.tight .roll-btn { padding: 5px 12px; }
   html.tight #hintRow { display: none; }
 
   #endPanel { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 12px; background: #141414e6; text-align: center; padding: 8px; color: #F2E8D5; }
@@ -126,7 +131,7 @@
   #endOutcome { font-size: 13px; font-weight: 600; }
   #endWhy { font-size: 12px; color: #F2E8D5; max-width: 30ch; }
   #endWhy[hidden] { display: none; }
-  .stuck-msg { color: #FF8A7E; font-size: 13px; font-weight: 600; min-height: 18px; padding: 4px 0; }
+  .stuck-msg { color: #FF8A7E; font-size: max(12px, calc(var(--die) * 0.295)); font-weight: 600; min-height: 18px; padding: 4px 0; }
   #endParts { font-size: 11px; font-family: "JetBrains Mono", ui-monospace, monospace; color: #9BB5A8; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
   .actions button { appearance: none; font: inherit; font-size: 13px; color: #F2C230; background: transparent; border: 1px solid #F2C230; border-radius: 999px; padding: 5px 14px; cursor: pointer; }
@@ -144,6 +149,9 @@
   #bar { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 12px; color: #4A3A00; margin-top: 3px; min-height: 18px; flex: none; }
   #who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   #character:empty { display: none; }
+  #muteBtn { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 20px; padding: 0; border: 1px solid #1A1A1A55; border-radius: 999px; background: transparent; color: #4A3A00; cursor: pointer; flex: none; }
+  #muteBtn:hover { color: #1A1A1A; background: #1A1A1A14; }
+  #muteBtn svg { display: block; width: 14px; height: 14px; }
 
   #help { position: fixed; inset: 0; z-index: 10; display: flex; justify-content: center; background: #F2C230fa; overflow-y: auto; padding: 14px 16px 16px; }
   #help[hidden] { display: none; }
@@ -196,6 +204,7 @@
   <div id="hintRow" class="wide"></div>
   <div id="bar" class="wide">
     <span id="character"></span>
+    <button type="button" id="muteBtn" aria-pressed="false" aria-label="Sound on (click to mute)" title="Sound on (click to mute)"></button>
     <span id="who"></span>
     <span id="dayLabel"></span>
   </div>
@@ -225,6 +234,145 @@ import { connectToHost } from "./game-client.js";
 
 const $ = (id) => document.getElementById(id);
 const EMOJI = { contamination: "🦠", defense: "⚗️", home: "🏠", hospital: "🏥", water: "🚰" };
+
+  // ==== SOUND ENGINE START ====
+  // Sounds made with Web Audio (no sound files), Cosmic Junkyard's engine. Each sound is a list of notes:
+  // { wave, from, to, at, dur, gain, attack } -- a waveform, a pitch in Hz sliding from `from`
+  // to `to`, starting `at` seconds in, lasting `dur` seconds, at `gain`, rising over `attack`
+  // seconds and then fading out. wave "noise" is a hiss with no pitch (a rattle): for it,
+  // `from` and `to` are how bright it is (a low-pass filter sliding from `from` Hz to `to` Hz). tools/sound-tuning.html holds a copy of this block (a check
+  // keeps them the same) to play and adjust each sound; its "Copy settings" gives the text to
+  // paste over SOUND_SETTINGS.
+  const SOUND_SETTINGS = {
+    volume: 0.5,
+    sounds: {
+      roll: [
+        { wave: "noise", from: 2600, to: 1400, at: 0, dur: 0.09, gain: 0.16, attack: 0.002 },
+        { wave: "noise", from: 2400, to: 1300, at: 0.16, dur: 0.08, gain: 0.13, attack: 0.002 },
+        { wave: "noise", from: 2800, to: 1500, at: 0.31, dur: 0.07, gain: 0.12, attack: 0.002 },
+        { wave: "noise", from: 2200, to: 1200, at: 0.5, dur: 0.07, gain: 0.1, attack: 0.002 },
+        { wave: "noise", from: 2000, to: 900, at: 0.72, dur: 0.06, gain: 0.08, attack: 0.002 },
+        { wave: "triangle", from: 180, to: 120, at: 0.95, dur: 0.12, gain: 0.12, attack: 0.003 },
+      ],
+      contamination: [
+        { wave: "sawtooth", from: 110, to: 92, at: 0.1, dur: 0.34, gain: 0.12, attack: 0.04 },
+        { wave: "sawtooth", from: 110, to: 92, at: 0.79, dur: 0.34, gain: 0.12, attack: 0.04 },
+        { wave: "sawtooth", from: 110, to: 92, at: 1.47, dur: 0.4, gain: 0.12, attack: 0.04 },
+      ],
+      defense: [
+        { wave: "sine", from: 1318.5, to: 1318.5, at: 0, dur: 0.35, gain: 0.14, attack: 0.004 },
+        { wave: "sine", from: 1975.5, to: 1975.5, at: 0.07, dur: 0.45, gain: 0.09, attack: 0.004 },
+      ],
+      resource: [
+        { wave: "triangle", from: 523.25, to: 523.25, at: 0, dur: 0.18, gain: 0.16, attack: 0.006 },
+        { wave: "triangle", from: 659.25, to: 659.25, at: 0.1, dur: 0.3, gain: 0.16, attack: 0.006 },
+      ],
+      fullSet: [
+        { wave: "triangle", from: 523.25, to: 523.25, at: 0, dur: 0.14, gain: 0.16, attack: 0.005 },
+        { wave: "triangle", from: 659.25, to: 659.25, at: 0.09, dur: 0.14, gain: 0.16, attack: 0.005 },
+        { wave: "triangle", from: 783.99, to: 783.99, at: 0.18, dur: 0.14, gain: 0.16, attack: 0.005 },
+        { wave: "sine", from: 1046.5, to: 1046.5, at: 0.27, dur: 0.5, gain: 0.14, attack: 0.005 },
+      ],
+      bank: [
+        { wave: "triangle", from: 392, to: 392, at: 0, dur: 0.6, gain: 0.12, attack: 0.01 },
+        { wave: "triangle", from: 493.88, to: 493.88, at: 0.03, dur: 0.6, gain: 0.1, attack: 0.01 },
+        { wave: "triangle", from: 587.33, to: 587.33, at: 0.06, dur: 0.65, gain: 0.1, attack: 0.01 },
+      ],
+      contained: [
+        { wave: "triangle", from: 523.25, to: 523.25, at: 0, dur: 0.12, gain: 0.15, attack: 0.005 },
+        { wave: "triangle", from: 659.25, to: 659.25, at: 0.12, dur: 0.12, gain: 0.15, attack: 0.005 },
+        { wave: "triangle", from: 783.99, to: 783.99, at: 0.24, dur: 0.12, gain: 0.15, attack: 0.005 },
+        { wave: "sine", from: 1046.5, to: 1046.5, at: 0.36, dur: 0.55, gain: 0.15, attack: 0.005 },
+      ],
+      failed: [
+        { wave: "sawtooth", from: 392, to: 392, at: 0, dur: 0.16, gain: 0.08, attack: 0.006 },
+        { wave: "sawtooth", from: 311.13, to: 311.13, at: 0.16, dur: 0.16, gain: 0.08, attack: 0.006 },
+        { wave: "sawtooth", from: 261.63, to: 196, at: 0.32, dur: 0.6, gain: 0.08, attack: 0.006 },
+      ],
+      stuck: [
+        { wave: "triangle", from: 440, to: 110, at: 0, dur: 0.75, gain: 0.14, attack: 0.01 },
+        { wave: "noise", from: 900, to: 200, at: 0.05, dur: 0.6, gain: 0.06, attack: 0.05 },
+      ],
+      click: [
+        { wave: "square", from: 1800, to: 1800, at: 0, dur: 0.025, gain: 0.06, attack: 0.002 },
+      ],
+    },
+  };
+  function createSoundEngine(settings) {
+    let ac = null, master = null, noiseBuffer = null;
+    // Two seconds of white noise, made once and reused by every "noise" note.
+    function noise() {
+      if (!noiseBuffer) {
+        const length = Math.floor(ac.sampleRate * 2);
+        noiseBuffer = ac.createBuffer(1, length, ac.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+      }
+      return noiseBuffer;
+    }
+    return {
+      settings,
+      // From a tap or key press (browsers start sound only then): makes the audio context, or wakes it.
+      unlock() {
+        try {
+          if (!ac) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            ac = new AC();
+            master = ac.createGain();
+            master.connect(ac.destination);
+          }
+          if (ac.state === "suspended") ac.resume();
+        } catch { ac = null; }
+      },
+      play(name) {
+        const notes = settings.sounds[name];
+        if (!ac || !notes) return;
+        try {
+          master.gain.setValueAtTime(settings.volume, ac.currentTime);
+          for (const n of notes) {
+            const t0 = ac.currentTime + Math.max(0, n.at);
+            const end = t0 + Math.max(0.01, n.dur);
+            const g = ac.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.linearRampToValueAtTime(Math.max(0.0001, n.gain), t0 + Math.max(0.001, n.attack));
+            g.gain.exponentialRampToValueAtTime(0.0001, end);
+            g.connect(master);
+            let src, sweep;
+            if (n.wave === "noise") {
+              src = ac.createBufferSource();
+              src.buffer = noise();
+              src.loop = true;               // (a note longer than the two seconds of noise)
+              const filter = ac.createBiquadFilter();
+              filter.type = "lowpass";
+              sweep = filter.frequency;
+              src.connect(filter);
+              filter.connect(g);
+            } else {
+              src = ac.createOscillator();
+              src.type = n.wave;
+              sweep = src.frequency;
+              src.connect(g);
+            }
+            sweep.setValueAtTime(Math.max(1, n.from), t0);
+            if (n.to > 0 && n.to !== n.from) sweep.exponentialRampToValueAtTime(n.to, end);
+            src.start(t0);
+            src.stop(end + 0.02);
+          }
+        } catch { /* no sound this time */ }
+      },
+    };
+  }
+  // ==== SOUND ENGINE END ====
+
+// Sound: on by default (decision CT20); the speaker in the bar turns it off for this visit. Browsers start sound
+// only after a click, so nothing plays before the first one.
+const sound = createSoundEngine(SOUND_SETTINGS);
+let muted = false;
+function play(name) { if (!muted) sound.play(name); }
+document.addEventListener("pointerdown", () => sound.unlock(), true);
+document.addEventListener("keydown", () => sound.unlock(), true);
+
 // The pace (decision CT19): House Dice's spin, quicker pulses.
 const CAST_MS = 1200, RED_MS = 2400, CALM_MS = 1600, GLOW_MS = 900, STILL_MS = 500;
 const params = new URLSearchParams(location.search);
@@ -275,12 +423,18 @@ function layout() {
   const root = document.documentElement;
   root.classList.toggle("tight", tight);
   root.style.setProperty("--pad", `${pad}px`);
-  const buttons = measureButtons(tight, w - pad * 2 - 2);
-  const tall = tight ? 18 + 6 + 4 : 21 + 18 + 24 + 18 + 8 + buttons.height + 10;   // (hint line,) tally, (attempts, buttons,) room
-  const wide = tight ? buttons.width + 10 : 0;                                        // the buttons' column
-  const byWidth = (w - pad * 2 - 2 - wide) / (4 + 3 * gapRatio);
-  const byHeight = (h - pad * 2 - 2 - tall) / (4 + 3 * gapRatio);
-  setDie(Math.max(16, Math.min(64, Math.floor(Math.min(byWidth, byHeight)))));
+  // The text and buttons scale with the dice (decision CT22), so measure, size, and measure again until it settles.
+  for (let round = 0; round < 4; round++) {
+    const buttons = measureButtons(tight, w - pad * 2 - 2);
+    const text = Math.max(12, dieSize * 0.3);                                         // the tally's and the attempts line's height
+    const tall = tight ? text + 6 + 4 : 21 + text + 4 + dieSize * 0.55 + text * 1.4 + 8 + buttons.height + 10;
+    const wide = tight ? buttons.width + 10 : 0;                                        // the buttons' column
+    const byWidth = (w - pad * 2 - 2 - wide) / (4 + 3 * gapRatio);
+    const byHeight = (h - pad * 2 - 2 - tall) / (4 + 3 * gapRatio);
+    const die = Math.max(16, Math.min(64, Math.floor(Math.min(byWidth, byHeight))));
+    if (die === dieSize && round) break;
+    setDie(die);
+  }
 }
 function overflowing() {
   const board = $("board"), app = $("app");
@@ -315,6 +469,7 @@ let casting = false;
 let glow = null;
 let looks = Array(16).fill(null);
 let pending = null;         // the pause in progress
+let endSounded = false;     // the end's sound plays once per game
 let stuckBeat = false;      // the moment a roll leaves nothing to keep, before the result
 let marginBefore = 0;       // defense minus contamination before the latest roll
 const STUCK_MS = 1600;
@@ -370,6 +525,7 @@ function roll() {
   }
   savedUri = null;
   marginBefore = 0;
+  endSounded = false;
   shown = { grid: Array(16).fill("defense"), kept: emptyKept(), used: [] };
   showRoll();
 }
@@ -386,12 +542,14 @@ function showRoll() {
   }));
   casting = true;
   pulse = null;
+  play("roll");
   pause(CAST_MS, () => {
     casting = false;
     const cells = [];
     s.lastRoll.forEach((f, i) => { if (f === "contamination") cells.push(i); });
     if (!cells.length) { showEngine(); afterRoll(); return; }
     pulse = { cells, cls: "contagion-pulse-red" };
+    play("contamination");
     pause(RED_MS, () => { showEngine(); flash("contamination"); afterRoll(); });
     render();
   });
@@ -402,6 +560,7 @@ function showRoll() {
 function afterRoll() {
   if (engine.state().ending === "stuck") {
     stuckBeat = true;
+    play("stuck");
     pause(STUCK_MS, () => { stuckBeat = false; render(); });
   }
   render();
@@ -417,12 +576,14 @@ function act(move) {
   }
   if (move === "bank") {
     if (!engine.move("bank")) return;
+    play("bank");
     showEngine();
     return render();
   }
   const cells = [];
   shown.grid.forEach((f, i) => { if (f === move) cells.push(i); });
   if (!engine.move(move)) return;
+  play(move === "defense" ? "defense" : engine.state().used.length === 3 ? "fullSet" : "resource");
   pulse = { cells, cls: move === "defense" ? "contagion-pulse-calm-blue" : "contagion-pulse-calm-yellow" };
   pause(CALM_MS, () => { showEngine(); flash(move); render(); });
   render();
@@ -536,6 +697,10 @@ function render() {
     $("endScore").textContent = String(r.score);
     $("endScore").classList.toggle("fail", !r.pass);
     $("endOutcome").textContent = r.pass ? "contained" : "containment failed";
+    if (over && !endSounded) {
+      endSounded = true;
+      if (r.ending !== "stuck") setTimeout(() => play(r.pass ? "contained" : "failed"), r.ending === "bank" ? 450 : 0);
+    }
     const why = over ? whyText(r) : dailyDone.why;
     $("endWhy").textContent = why;
     $("endWhy").hidden = !why;
@@ -594,6 +759,28 @@ $("saveBtn").addEventListener("click", async () => {
   say({ declined: "Not saved.", "not-allowed": "This page can't save this game.", invalid: "The page couldn't accept this game.", failed: "Couldn't save. Try again." }[r.error] || "Couldn't save.");
 });
 $("seeBtn").addEventListener("click", () => { if (savedUri) host.openRecord(savedUri); });
+
+// The speaker in the bar (as Cosmic Junkyard's).
+const muteBtn = $("muteBtn");
+const SPEAKER = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>';
+function drawMute() {
+  muteBtn.innerHTML = SPEAKER + (muted
+    ? '<path d="M17 9l5 6M22 9l-5 6"/></svg>'
+    : '<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>');
+  const label = muted ? "Sound off (click to turn it on)" : "Sound on (click to mute)";
+  muteBtn.setAttribute("aria-label", label);
+  muteBtn.title = label;
+  muteBtn.setAttribute("aria-pressed", muted ? "true" : "false");
+}
+drawMute();
+muteBtn.addEventListener("click", () => {
+  sound.unlock();
+  muted = !muted;
+  drawMute();
+  play("click");
+});
+// A quiet tick for the page's own buttons (not the game's moves, which have their own sounds).
+for (const id of ["dailyBtn", "freeBtn", "helpBtn", "helpClose", "saveBtn", "seeBtn", "againBtn"]) $(id).addEventListener("click", () => play("click"));
 // Play again: after a daily, free play (the nudge, decision CT16); otherwise the same mode.
 $("againBtn").addEventListener("click", () => newBoard(mode === "daily" ? "free" : mode));
 $("dailyBtn").addEventListener("click", () => newBoard("daily"));

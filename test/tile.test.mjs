@@ -44,6 +44,20 @@ test("the page's policy: no network, WebAssembly allowed", () => {
   const code = html.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/[^\n]*/g, '');
   assert.doesNotMatch(code, /https?:\/\//, 'an address outside comments');
   assert.match(html, /CAST_MS = 1200, RED_MS = 2400, CALM_MS = 1600/, 'the pace (CT19)');
+  assert.match(html, /Keep the contamination contained while protecting resources\./, "the owner's object line");
+});
+
+test('sound: the tuning page holds the same SOUND ENGINE block as the tile; a speaker in the bar; no sound files', () => {
+  const block = (t) => /\/\/ ==== SOUND ENGINE START ====([\s\S]*?)\/\/ ==== SOUND ENGINE END ====/.exec(t)?.[1];
+  const html = read('tile', 'index.html').toString();
+  const page = read('tools', 'sound-tuning.html').toString();
+  assert.ok(block(html));
+  assert.equal(block(page), block(html), 'copy the block from tile/index.html into tools/sound-tuning.html (or the other way, after tuning)');
+  for (const name of ['roll', 'contamination', 'defense', 'resource', 'fullSet', 'bank', 'contained', 'failed', 'stuck', 'click']) {
+    assert.match(block(html), new RegExp(`\\n      ${name}: \\[`), `a ${name} sound`);
+  }
+  assert.match(html, /id="muteBtn" aria-pressed="false"/, 'sound starts on, with the speaker in the bar');
+  assert.doesNotMatch(html, /<audio|\.(mp3|wav|ogg|m4a)\b/, 'no sound files');
 });
 
 test('500 games become records that check; changed records are refused', async () => {

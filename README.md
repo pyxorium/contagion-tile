@@ -4,8 +4,8 @@ A push-your-luck dice web tile: [House Dice](https://pyxorium.tngl.io/dicestreak
 seeded dice. Its rules run as a small WebAssembly engine, `engine/engine.wasm`, which the tile's page will
 play through and which any host can ask to check a saved game, so the host keeps no copy of the rules.
 
-**Status:** the engine (stage 1) and the tile's page (stage 2) built Nov 24 2026. Sounds, the lexicon,
-publishing and saving in Raku come next.
+**Status:** the engine (stage 1), the tile's page (stage 2) and its sounds (stage 2b) built Nov 24 2026. The
+lexicon, publishing and saving in Raku come next.
 
 ## The rules
 
@@ -69,7 +69,11 @@ What will be published as the web tile:
   tally, the cream dice, the spin, the red pulse for contamination, the calm pulse for a keep), at a quicker pace:
   the spin 1.2 s, contamination 2.4 s, a keep 1.6 s, the buttons back after each pulse. The dice follow the
   frame; in a short frame (a tile post's card) the buttons stand beside the grid. With reduced motion nothing
-  spins or pulses. Daily and Free play; after a daily game, Play again starts free play and the Daily button
+  spins or pulses. The tally and buttons scale with the dice, in House Dice's proportions, and the buttons are
+  measured in the real font, so they always fit. **Sounds** (Web Audio, no sound files; Cosmic Junkyard's
+  engine): a rattle on each roll, a low throb with each red pulse, a chime for a keep (glassy for defense,
+  warm for a resource, brighter for the full set), a chord on bank, and a rising, falling or deflating end. On
+  by default; the speaker in the bar mutes it for the visit. Daily and Free play; after a daily game, Play again starts free play and the Daily button
   shows the finished daily (a reload brings the daily back). How to play behind the "?".
 - `engine.wasm`, `engine.js`: exact copies of `engine\` (a test checks).
 - `contagion-record.js`: the record a finished game sends to save (the engine's own result) and the check a
@@ -79,6 +83,10 @@ What will be published as the web tile:
 - `manifest.json` (name, description, 380 × 540), `icon.png` (256 px; the dice use the Noto Color Emoji font).
 
 For checks: `?seed=…` picks a free-play seed.
+
+`tools/sound-tuning.html`: play and adjust every sound (open the file in a browser; no server needed): Play,
+Play all, volume, Reset, A/B, and Copy settings, whose text goes over `SOUND_SETTINGS` in `tile/index.html`.
+It holds a copy of the tile's SOUND ENGINE block; `npm test` keeps the two the same.
 
 ## Checks
 
@@ -97,7 +105,9 @@ sizes (380 × 540, 340 × 300, 300 × 250, a phone), the pace, reduced motion, a
 (`test/browser/host.html`, speaking the kit's messages and checking each game with the engine before asking): a
 daily game saved and checked again in Node, See it, the nudge after a daily, free play saved with its seed, a
 declined save, a tampered record refused, a host that doesn't save Contagion, a guest, How to play, and nothing
-fetched from outside.
+fetched from outside; buttons forced extra wide (as Windows' emoji) still inside the board at four sizes, with
+the dice one size all game; the stuck ending's beat and its words; sound (nothing before the first click, a
+roll and a keep make notes, the speaker mutes); the tally and buttons in proportion to the dice.
 
 `npm run check-engine` rebuilds the engine to a temporary file and says whether it matches the committed
 one (needs clang 18.1.3). `npm run simulate` plays 30,000 games per bot through the engine.

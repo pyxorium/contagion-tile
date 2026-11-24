@@ -157,6 +157,59 @@ with sync_playwright() as p:
     check("stuck: a last roll of only 🦠 says 'Only 🦠 came up: the game is over'", "Only 🦠 came up: the game is over" in msgs, msgs)
     pg.close()
 
+    # ---- sound (CT20): nothing before the first click, notes on a roll and a keep, none while muted ----
+    COUNT = """(() => { window.__notes = 0; const AC = window.AudioContext; if (!AC) return;
+      const o = AC.prototype.createOscillator, b = AC.prototype.createBufferSource;
+      AC.prototype.createOscillator = function () { window.__notes++; return o.call(this); };
+      AC.prototype.createBufferSource = function () { window.__notes++; return b.call(this); }; })();"""
+    pg = browser.new_page(viewport={"width": 380, "height": 540})
+    pg.add_init_script(COUNT)
+    pg.goto(f"{BASE}/tile/index.html?seed=4242")
+    pg.wait_for_selector("#rollBtn")
+    check("sound: the speaker shows sound on", pg.locator("#muteBtn").get_attribute("aria-pressed") == "false" and pg.locator("#muteBtn svg").count() == 1)
+    check("sound: nothing before the first click", pg.evaluate("window.__notes") == 0)
+    pg.click("#freeBtn")
+    pg.click("#rollBtn")
+    pg.wait_for_timeout(400)
+    check("sound: a roll rattles", pg.evaluate("window.__notes") >= 5, pg.evaluate("window.__notes"))
+    pg.wait_for_selector("#below button[data-move]", timeout=6000)
+    before = pg.evaluate("window.__notes")
+    pg.locator("#below button[data-move]").first.click()
+    pg.wait_for_timeout(200)
+    check("sound: a keep chimes", pg.evaluate("window.__notes") > before)
+    pg.wait_for_selector('#below button[data-move="roll"]', timeout=5000)
+    pg.click("#muteBtn")
+    check("sound: the speaker mutes", pg.locator("#muteBtn").get_attribute("aria-pressed") == "true" and "Sound off" in pg.locator("#muteBtn").get_attribute("aria-label"))
+    before = pg.evaluate("window.__notes")
+    pg.click('#below button[data-move="roll"]')
+    pg.wait_for_timeout(600)
+    check("sound: muted, a roll is silent", pg.evaluate("window.__notes") == before)
+    pg.click("#muteBtn")
+    pg.wait_for_timeout(100)
+    check("sound: unmuting ticks", pg.evaluate("window.__notes") > before)
+    pg.close()
+    pg = browser.new_page(viewport={"width": 1200, "height": 900})
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto("file://" + os.path.join(ROOT, "tools", "sound-tuning.html"))
+    names = pg.locator("section h2").all_inner_texts()
+    check("sound: the tuning page lists the ten sounds", len(names) == 10 and not errs, (names, errs))
+    pg.close()
+
+    # ---- proportions (CT22): the tally and buttons scale with the dice ----
+    for (w, h) in [(380, 540), (456, 658), (300, 250)]:
+        pg = browser.new_page(viewport={"width": w, "height": h})
+        pg.goto(f"{BASE}/tile/index.html?seed=1")
+        pg.click("#freeBtn"); pg.click("#rollBtn")
+        pg.wait_for_selector("#below button[data-move]", timeout=8000)
+        m = pg.evaluate("""() => ({ die: document.querySelector('.contagion-die').getBoundingClientRect().width,
+          tally: parseFloat(getComputedStyle(document.querySelector('#tally')).fontSize),
+          btn: parseFloat(getComputedStyle(document.querySelector('.contagion-take-btn')).fontSize) })""")
+        expect = max(11, m["die"] * 0.273)
+        check(f"proportions {w}x{h}: tally {m['tally']:.1f} px with {m['die']:.0f} px dice (House Dice's 12 at 44)", abs(m["tally"] - expect) < 0.6 and m["btn"] >= 11.5, m)
+        pg.screenshot(path=os.path.join(SHOTS, f"proportions-{w}x{h}.png"))
+        pg.close()
+
     # ---- the pace (CT19): spin, red pulse, calm pulse; buttons hidden while they play ----
     pg = browser.new_page(viewport={"width": 380, "height": 540})
     watch(pg)
