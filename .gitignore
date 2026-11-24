@@ -1,3 +1,4 @@
 commit-*.txt
 node_modules/
 test/browser/screenshots/
+backups/

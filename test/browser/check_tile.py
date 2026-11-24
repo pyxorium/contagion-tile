@@ -210,6 +210,26 @@ with sync_playwright() as p:
         pg.screenshot(path=os.path.join(SHOTS, f"proportions-{w}x{h}.png"))
         pg.close()
 
+    # ---- the board keeps one size all game (owner, Nov 24) ----
+    for (w, h) in [(380, 540), (456, 658), (390, 844)]:
+        pg = browser.new_page(viewport={"width": w, "height": h})
+        pg.goto(f"{BASE}/tile/index.html?seed=1")
+        bh = lambda: round(pg.evaluate("() => document.querySelector('#board').getBoundingClientRect().height"), 1)
+        pg.wait_for_selector("#rollBtn")
+        heights = {"start": bh()}
+        pg.click("#freeBtn")
+        heights["free, before rolling"] = bh()
+        pg.click("#rollBtn")
+        pg.wait_for_timeout(400); heights["spinning"] = bh()
+        pg.wait_for_selector("#below button[data-move]", timeout=8000); heights["four keeps"] = bh()
+        pg.locator('#below button[data-move="defense"]').click()
+        pg.wait_for_timeout(300); heights["keep pulsing"] = bh()
+        pg.wait_for_selector('#below button[data-move="roll"]', timeout=5000); heights["roll or bank"] = bh()
+        pg.click('#below button[data-move="bank"]')
+        pg.wait_for_selector("#endPanel", state="visible", timeout=5000); heights["the end"] = bh()
+        check(f"board {w}x{h}: one height all game", max(heights.values()) - min(heights.values()) < 0.6, heights)
+        pg.close()
+
     # ---- the pace (CT19): spin, red pulse, calm pulse; buttons hidden while they play ----
     pg = browser.new_page(viewport={"width": 380, "height": 540})
     watch(pg)

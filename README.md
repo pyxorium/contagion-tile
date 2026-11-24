@@ -4,8 +4,8 @@ A push-your-luck dice web tile: [House Dice](https://pyxorium.tngl.io/dicestreak
 seeded dice. Its rules run as a small WebAssembly engine, `engine/engine.wasm`, which the tile's page will
 play through and which any host can ask to check a saved game, so the host keeps no copy of the rules.
 
-**Status:** the engine (stage 1), the tile's page (stage 2) and its sounds (stage 2b) built Nov 24 2026. The
-lexicon, publishing and saving in Raku come next.
+**Status:** the engine (stage 1), the tile's page (stage 2), its sounds (stage 2b), and the declaration, the
+lexicon and the publishing scripts (stage 3) built Nov 24 2026. Saving in Raku comes next.
 
 ## The rules
 
@@ -80,13 +80,63 @@ What will be published as the web tile:
   host can run on one (`checkRecord`: ask the engine the standard question and compare every field).
 - `game-client.js`: an exact copy of the Game Host Kit's game helper (a test checks it against Prism's copy, and
   against the kit when it's next to this folder).
-- `manifest.json` (name, description, 380 × 540), `icon.png` (256 px; the dice use the Noto Color Emoji font).
+- `declaration.json`: what the tile asks of a host, and promises (below).
+- `cafe.thunderbird.contagion.game.json`: a copy of the record lexicon, byte for byte (`lexicons\`).
+- `manifest.json` (name, description, 380 × 540), `icon.png` (256 px), `banner.jpg` (1280 × 720, the preview
+  picture on a host's card). The dice in both use the Noto Color Emoji font.
 
 For checks: `?seed=…` picks a free-play seed.
 
 `tools/sound-tuning.html`: play and adjust every sound (open the file in a browser; no server needed): Play,
 Play all, volume, Reset, A/B, and Copy settings, whose text goes over `SOUND_SETTINGS` in `tile/index.html`.
 It holds a copy of the tile's SOUND ENGINE block; `npm test` keeps the two the same.
+
+## The declaration, and what a host approves
+
+`tile\declaration.json` (version 1) says what Contagion asks of a host and promises: **network** none;
+**identity** none (the game isn't told who the player is); **writes** one record type
+(`cafe.thunderbird.contagion.game`), one record per save, at most 4,096 bytes; **reads** only the player's own
+Contagion games, by the host, for the once-a-day rule; the **engine**'s limits (64 KB, 1 MB of memory, one
+second), its standard calls and how to pass the moves (each word's position in the lexicon's list); the **house
+rules** as data (daily carries a day and never a seed, free play the reverse; at most one daily game a day,
+America/Denver, today or yesterday); and the **statement** a host shows when asking to save: "No network. Saves
+one game record. Doesn't see your account."
+
+A host approves three files together, by their CIDs: the engine (`bafkreifms2aawbaemihyu7jnvk6zmpv3iuxsqcsjozo7brvdk5j4t5vrta`),
+the declaration (`bafkreicrfhdcr73nzby6z2xnvfz76q5kfyavhwoo3wu6kgokqbdw4frwqi`) and the lexicon copy
+(`bafkreihovgusssrmfxf7zjko2e36fpkrdr3m7r7zvccxd7hrvgdzdkrrwq`). A page-only change (the look, the words, the
+sounds) changes none of them, so a host needs nothing; changing any of them means telling the hosts. A host may
+narrow what is declared, never widen it. `.gitattributes` keeps git from changing these files' bytes.
+
+## The record
+
+`cafe.thunderbird.contagion.game` (`lexicons\`), written by the host into the player's own account:
+
+| field | what |
+|---|---|
+| `mode` | `daily` or `free` |
+| `day` / `seed` | the day (YYYY-MM-DD, America/Denver) for a daily game; the seed for free play; never both |
+| `moves` | the moves as words, in order: `roll`, `bank`, `defense`, `home`, `hospital`, `water` (the opening roll isn't one) |
+| `ending` | `bank`, `emptied` or `stuck` |
+| `kept` | how many of each face were set aside |
+| `pass`, `score`, `resourceCount`, `fullSetBonus`, `exhaustionBonus` | the result |
+| `grid` | the 16 cells at the end, row by row: a face or `empty` |
+| `game`, `engine`, `createdAt`, `$type` | added by the host: the tile (address and version), the engine's CID, when |
+
+**Checking one:** give the engine the essentials (mode, day or seed, the moves as their positions in the
+lexicon's list) with `std_check_daily` or `std_check_free`; it answers with the other fields as JSON, which must
+equal the record's exactly (`tile\contagion-record.js`, `checkRecord`).
+
+## Publishing (from thunderbird.cafe)
+
+- `node scripts\publish-lexicons.mjs` (`--dry-run` first): the lexicon, as a `com.atproto.lexicon.schema` record;
+  the Wix TXT record `_lexicon.contagion` (value `did=did:plc:6vxjigxrqizmbo56gojxico3`) says the names are
+  thunderbird.cafe's.
+- `node scripts\publish-tile.mjs` (`--dry-run` first): the tile. The first run makes a new record; later runs
+  update it in place (only changed files uploaded, `swapRecord`, a backup in `backups\`, read back). **It
+  publishes only the approved set** (the three CIDs above), only with the tile's lexicon copy equal to the lexicon
+  as published.
+- Both write their part of `published.json` (commit it). The app password: `$env:BSKY_APP_PASSWORD`, or asked for.
 
 ## Checks
 
@@ -96,6 +146,10 @@ House Dice's odds; **100,000 games played side by side, engine and reference ide
 (illegal tries refused by both and changing nothing); every finished game checks to its own result, label
 and line; tampered, unfinished and malformed games refused; and ten copies of the engine, each with one rule
 broken, all caught (this one needs clang, and is skipped without it). `CONTAGION_GAMES=2000` for a quick run.
+
+`test/publish.test.mjs` (in `npm test`): the files and the approved set (each change refused), the declaration,
+publishing against a stand-in account server (first publish, nothing to do, a page change, refusals), the
+lexicon (the moves in the engine's order), and 600 games' records fitting it.
 
 `test/tile.test.mjs` (in `npm test`): the tile's copies, the manifest, the page's policy (no network), and 500
 games whose records check, with changed records refused.

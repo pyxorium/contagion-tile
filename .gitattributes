@@ -1,0 +1,6 @@
+# Exact bytes: hosts approve these files by their CIDs (decision CT12), so git must never change their line endings.
+engine/engine.wasm binary
+tile/engine.wasm binary
+tile/declaration.json -text
+tile/cafe.thunderbird.contagion.game.json -text
+lexicons/*.json -text

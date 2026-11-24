@@ -67,7 +67,9 @@
   .contagion-die { width: var(--die); height: var(--die); border-radius: 16%; background: #F2E8D5; display: flex; align-items: center; justify-content: center; font-size: calc(var(--die) * 0.46); line-height: 1; position: relative; }
   .contagion-die-blank { background: transparent; }
   .contagion-die-used { opacity: 0.35; }
-  .contagion-below-grid { margin-top: auto; }
+  /* The space under the grid is kept at its largest ("choose one type to keep" and four keep buttons), so the board
+     stays one size all game (owner, Nov 24). */
+  .contagion-below-grid { margin-top: auto; min-height: var(--below, 0px); }
   @keyframes contagion-count-glow-kf {
     0% { filter: drop-shadow(0 0 0 currentColor); transform: scale(1); }
     15% { filter: drop-shadow(0 0 6px currentColor); transform: scale(1.3); }
@@ -116,7 +118,7 @@
   html.tight .contagion-board { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; column-gap: 10px; align-items: center; }
   html.tight .contagion-tally { grid-column: 1 / 3; margin-bottom: 6px; }
   html.tight .contagion-grid { margin-bottom: 0; }
-  html.tight .contagion-below-grid { margin-top: 0; }
+  html.tight .contagion-below-grid { margin-top: 0; min-height: 0; }
   html.tight .attempts { display: none; }
   html.tight .contagion-take-row { flex-direction: column; align-items: stretch; margin-top: 0; row-gap: 5px; min-height: 0; }
   html.tight .contagion-take-btn { padding: 4px 10px; }
@@ -435,6 +437,33 @@ function layout() {
     if (die === dieSize && round) break;
     setDie(die);
   }
+  reserveBelow();
+}
+// The height under the grid at its largest ("choose one type to keep" and four keep buttons, on one row or two),
+// measured by laying that out in the real space under the grid for a moment, out of sight.
+function reserveBelow() {
+  const root = document.documentElement;
+  if (root.classList.contains("tight")) { root.style.setProperty("--below", "0px"); return; }
+  const below = $("below");
+  const kept = [...below.childNodes];
+  const attempts = document.createElement("div");
+  attempts.className = "attempts";
+  attempts.textContent = "choose one type to keep";
+  const row = document.createElement("div");
+  row.className = "contagion-take-row";
+  for (const f of ["defense", "home", "hospital", "water"]) {
+    const b = document.createElement("button");
+    b.className = "contagion-take-btn";
+    b.textContent = `${EMOJI[f]} keep`;
+    row.append(b);
+  }
+  root.style.setProperty("--below", "0px");
+  below.style.visibility = "hidden";
+  below.replaceChildren(attempts, row);
+  const height = Math.ceil(below.getBoundingClientRect().height);
+  below.replaceChildren(...kept);
+  below.style.visibility = "";
+  root.style.setProperty("--below", `${height}px`);
 }
 function overflowing() {
   const board = $("board"), app = $("app");
@@ -442,7 +471,7 @@ function overflowing() {
     document.documentElement.scrollWidth > window.innerWidth + 1;
 }
 function fit() {
-  for (let n = 0; n < 20 && dieSize > 16 && overflowing(); n++) setDie(dieSize - 2);
+  for (let n = 0; n < 20 && dieSize > 16 && overflowing(); n++) { setDie(dieSize - 2); reserveBelow(); }
 }
 let ready = false;          // render() waits for the engine and the host
 window.addEventListener("resize", () => { layout(); if (ready) render(); });
