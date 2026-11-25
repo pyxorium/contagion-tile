@@ -243,7 +243,9 @@ const EMOJI = { contamination: "🦠", defense: "⚗️", home: "🏠", hospital
   // { wave, from, to, at, dur, gain, attack } -- a waveform, a pitch in Hz sliding from `from`
   // to `to`, starting `at` seconds in, lasting `dur` seconds, at `gain`, rising over `attack`
   // seconds and then fading out. wave "noise" is a hiss with no pitch (a rattle): for it,
-  // `from` and `to` are how bright it is (a low-pass filter sliding from `from` Hz to `to` Hz). tools/sound-tuning.html holds a copy of this block (a check
+  // `from` and `to` are how bright it is (a low-pass filter sliding from `from` Hz to `to` Hz). Any other note may add
+  // `cutoff` (and `cutoffTo`): a low-pass filter at `cutoff` Hz (sliding to `cutoffTo`) that softens its top, e.g. a
+  // warm sawtooth hum; a note without one plays unfiltered. tools/sound-tuning.html holds a copy of this block (a check
   // keeps them the same) to play and adjust each sound; its "Copy settings" gives the text to
   // paste over SOUND_SETTINGS.
   const SOUND_SETTINGS = {
@@ -355,7 +357,16 @@ const EMOJI = { contamination: "🦠", defense: "⚗️", home: "🏠", hospital
               src = ac.createOscillator();
               src.type = n.wave;
               sweep = src.frequency;
-              src.connect(g);
+              if (n.cutoff > 0) {
+                const filter = ac.createBiquadFilter();
+                filter.type = "lowpass";
+                filter.frequency.setValueAtTime(n.cutoff, t0);
+                if (n.cutoffTo > 0 && n.cutoffTo !== n.cutoff) filter.frequency.exponentialRampToValueAtTime(n.cutoffTo, end);
+                src.connect(filter);
+                filter.connect(g);
+              } else {
+                src.connect(g);
+              }
             }
             sweep.setValueAtTime(Math.max(1, n.from), t0);
             if (n.to > 0 && n.to !== n.from) sweep.exponentialRampToValueAtTime(n.to, end);

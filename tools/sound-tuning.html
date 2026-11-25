@@ -7,7 +7,8 @@
 <!--
   Play and adjust Contagion's sounds (claude/contagion-tile-plan.md, CT20; the engine is Cosmic Junkyard's, CJ2-13). Open this file in a browser
   (double-click it; no server needed). Each sound is a list of notes; change any number and press its Play. Reset puts
-  back the tile's own settings; A and B keep two versions to compare; the wave "noise" is a hiss with no pitch, and for
+  back the tile's own settings; A and B keep two versions to compare (they open holding the 🦠 hum's two candidates: A
+  triangles, B a filtered sawtooth; "cutoff Hz" softens a note's top, blank = none); the wave "noise" is a hiss with no pitch, and for
   it "from Hz" and "to Hz" are how bright it is (high a hiss, low a rumble); "Copy settings" copies the text to paste over
   SOUND_SETTINGS in tile/index.html (between the SOUND ENGINE lines). The block below is a copy of the tile's own:
   npm test checks they are the same, so after pasting new settings into the tile, paste them here too (or copy the
@@ -18,13 +19,14 @@
   body { margin: 0; background: #141414; color: #F2E8D5; font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; background: #F2C230; color: #1A1A1A; border-bottom: 1px solid #000; }
   header h1 { font-size: 16px; margin: 0 12px 0 0; }
-  main { padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 16px; }
+  main { padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(680px, 1fr)); gap: 16px; }
   section { border: 1px solid #1c2230; border-radius: 10px; padding: 12px; background: #0a0e1a; }
   section h2 { font-size: 15px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
   section p { margin: 0 0 8px; color: #8ea0b3; font-size: 12px; }
   table { border-collapse: collapse; width: 100%; }
   th { text-align: left; font-weight: normal; color: #8ea0b3; font-size: 11px; padding: 2px 4px; }
   td { padding: 2px 4px; }
+  input[type=number].opt { width: 64px; }
   input[type=number] { width: 74px; background: #111829; color: #eaf0f6; border: 1px solid #2a3550; border-radius: 5px; padding: 3px 5px; font: inherit; font-size: 12px; }
   select { background: #111829; color: #eaf0f6; border: 1px solid #2a3550; border-radius: 5px; padding: 3px; font-size: 12px; }
   button { appearance: none; border: 1px solid rgba(140,180,255,0.45); background: rgba(140,180,255,0.12); color: #eaf0f6; font-size: 12px; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
@@ -56,7 +58,9 @@
   // { wave, from, to, at, dur, gain, attack } -- a waveform, a pitch in Hz sliding from `from`
   // to `to`, starting `at` seconds in, lasting `dur` seconds, at `gain`, rising over `attack`
   // seconds and then fading out. wave "noise" is a hiss with no pitch (a rattle): for it,
-  // `from` and `to` are how bright it is (a low-pass filter sliding from `from` Hz to `to` Hz). tools/sound-tuning.html holds a copy of this block (a check
+  // `from` and `to` are how bright it is (a low-pass filter sliding from `from` Hz to `to` Hz). Any other note may add
+  // `cutoff` (and `cutoffTo`): a low-pass filter at `cutoff` Hz (sliding to `cutoffTo`) that softens its top, e.g. a
+  // warm sawtooth hum; a note without one plays unfiltered. tools/sound-tuning.html holds a copy of this block (a check
   // keeps them the same) to play and adjust each sound; its "Copy settings" gives the text to
   // paste over SOUND_SETTINGS.
   const SOUND_SETTINGS = {
@@ -168,7 +172,16 @@
               src = ac.createOscillator();
               src.type = n.wave;
               sweep = src.frequency;
-              src.connect(g);
+              if (n.cutoff > 0) {
+                const filter = ac.createBiquadFilter();
+                filter.type = "lowpass";
+                filter.frequency.setValueAtTime(n.cutoff, t0);
+                if (n.cutoffTo > 0 && n.cutoffTo !== n.cutoff) filter.frequency.exponentialRampToValueAtTime(n.cutoffTo, end);
+                src.connect(filter);
+                filter.connect(g);
+              } else {
+                src.connect(g);
+              }
             }
             sweep.setValueAtTime(Math.max(1, n.from), t0);
             if (n.to > 0 && n.to !== n.from) sweep.exponentialRampToValueAtTime(n.to, end);
@@ -193,7 +206,8 @@
     stuck: "A roll leaves nothing to keep: deflating, with the dice dimmed.",
     click: "The page's own buttons: Daily, Free play, ?, Save this game, See it, Play again, the speaker.",
   };
-  const FIELDS = [["from", "from Hz", 1], ["to", "to Hz", 1], ["at", "at s", 0.01], ["dur", "length s", 0.01], ["gain", "gain", 0.01], ["attack", "attack s", 0.001]];
+  const FIELDS = [["from", "from Hz", 1], ["to", "to Hz", 1], ["at", "at s", 0.01], ["dur", "length s", 0.01], ["gain", "gain", 0.01], ["attack", "attack s", 0.001],
+    ["cutoff", "cutoff Hz", 10, true], ["cutoffTo", "cutoff to Hz", 10, true]];   // optional (blank = none; not for noise)
   const WAVES = ["square", "triangle", "sawtooth", "sine", "noise"];
   const original = JSON.parse(JSON.stringify(SOUND_SETTINGS));
   let settings = JSON.parse(JSON.stringify(SOUND_SETTINGS));
@@ -215,7 +229,7 @@
       const notes = settings.sounds[name];
       const rows = notes.map((n, i) => el("tr", {},
         el("td", {}, (() => { const s = el("select", { onchange: () => { n.wave = s.value; } }); for (const w of WAVES) s.append(el("option", { value: w, selected: w === n.wave }, w)); return s; })()),
-        ...FIELDS.map(([k, , step]) => el("td", {}, el("input", { type: "number", step, value: n[k], onchange: (e) => { const v = parseFloat(e.target.value); if (!Number.isNaN(v)) n[k] = v; } }))),
+        ...FIELDS.map(([k, , step, optional]) => el("td", {}, el("input", { type: "number", step, value: n[k] ?? "", placeholder: optional ? "none" : "", className: optional ? "opt" : "", onchange: (e) => { const v = parseFloat(e.target.value); if (!Number.isNaN(v) && !(optional && v <= 0)) n[k] = v; else if (optional) { delete n[k]; e.target.value = ""; } } }))),
         el("td", {}, el("button", { type: "button", className: "x", title: "Remove this note", onclick: () => { notes.splice(i, 1); draw(); } }, "×"))));
       main.append(el("section", {},
         el("h2", {}, name, el("button", { type: "button", className: "play", onclick: () => play(name) }, "Play")),
@@ -238,7 +252,8 @@
     const lines = ["  const SOUND_SETTINGS = {", "    volume: " + num(s.volume) + ",", "    sounds: {"];
     for (const [name, notes] of Object.entries(s.sounds)) {
       lines.push("      " + name + ": [");
-      for (const n of notes) lines.push('        { wave: "' + n.wave + '", from: ' + num(n.from) + ", to: " + num(n.to) + ", at: " + num(n.at) + ", dur: " + num(n.dur) + ", gain: " + num(n.gain) + ", attack: " + num(n.attack) + " },");
+      for (const n of notes) lines.push('        { wave: "' + n.wave + '", from: ' + num(n.from) + ", to: " + num(n.to) + ", at: " + num(n.at) + ", dur: " + num(n.dur) + ", gain: " + num(n.gain) + ", attack: " + num(n.attack) +
+        (n.cutoff > 0 ? ", cutoff: " + num(n.cutoff) : "") + (n.cutoff > 0 && n.cutoffTo > 0 ? ", cutoffTo: " + num(n.cutoffTo) : "") + " },");
       lines.push("      ],");
     }
     lines.push("    },", "  };");
@@ -250,7 +265,23 @@
     catch { const t = el("textarea", { value: text }); document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); note("Copied."); }
   });
   window.__settingsText = () => settingsText(settings);
+
+  // The 🦠 hum round (Nov 24): two versions ready to compare with "Use A" / "Use B". Both have the volume 10% up
+  // (0.5 to 0.55) and every other sound as the tile's.
+  //   A: the owner's hum from the tuning page: three triangles at 150 to 160 Hz, gain 0.5 (the 450 Hz sines dropped).
+  //   B: a filtered sawtooth at the same pitch and timings: low-pass at 700 Hz (try 300 to 1200: lower is warmer and
+  //      closer to A, higher is buzzier and louder on small speakers), gain 0.25.
+  const hum = (wave, gain, extra) => [[0.1, 0.34], [0.79, 0.34], [1.47, 0.4]].map(([at, dur]) =>
+    Object.assign({ wave, from: 150, to: 160, at, dur, gain, attack: 0.05 }, extra));
+  for (const [k, notes] of [["A", hum("triangle", 0.5)], ["B", hum("sawtooth", 0.25, { cutoff: 700 })]]) {
+    const v = JSON.parse(JSON.stringify(original));
+    v.volume = 0.55;
+    v.sounds.contamination = notes;
+    kept[k] = v;
+  }
+  settings = JSON.parse(JSON.stringify(kept.A));
   draw();
+  note("Using A (the triangle hum). B is the filtered sawtooth: press Use B. Both have the volume at 0.55.");
 })();
 </script>
 </body>

@@ -195,6 +195,44 @@ with sync_playwright() as p:
     names = pg.locator("section h2").all_inner_texts()
     check("sound: the tuning page lists the ten sounds", len(names) == 10 and not errs, (names, errs))
     pg.close()
+    # The 🦠 hum round: A (triangles) and B (a filtered sawtooth) ready; a note's cutoff makes a low-pass filter.
+    FILTERS = """(() => { window.__filters = 0; window.__osc = []; const AC = window.AudioContext; if (!AC) return;
+      const f = AC.prototype.createBiquadFilter, o = AC.prototype.createOscillator;
+      AC.prototype.createBiquadFilter = function () { window.__filters++; return f.call(this); };
+      AC.prototype.createOscillator = function () { const x = o.call(this); window.__osc.push(x); return x; }; })();"""
+    pg = browser.new_page(viewport={"width": 1400, "height": 900})
+    pg.add_init_script(FILTERS)
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto("file://" + os.path.join(ROOT, "tools", "sound-tuning.html"))
+    text_a = pg.evaluate("window.__settingsText()")
+    check("hum: the tuning page opens on A, the triangle hum at 0.5, volume 0.55",
+          'contamination: [\n        { wave: "triangle", from: 150, to: 160, at: 0.1, dur: 0.34, gain: 0.5, attack: 0.05 },' in text_a
+          and "volume: 0.55," in text_a and "cutoff" not in text_a, text_a[:400])
+    def play_contamination():
+        pg.evaluate("window.__filters = 0; window.__osc = []")
+        pg.locator("section", has=pg.locator("h2", has_text="contamination")).locator("button.play").click()
+        pg.wait_for_timeout(150)
+        return pg.evaluate("({ filters: window.__filters, waves: window.__osc.map(o => o.type) })")
+    r = play_contamination()
+    check("hum: A plays three triangles, unfiltered", r == {"filters": 0, "waves": ["triangle"] * 3}, r)
+    pg.click("#useB")
+    text_b = pg.evaluate("window.__settingsText()")
+    check("hum: B is the sawtooth at 0.25 with a 700 Hz cutoff, and Copy settings writes the cutoff",
+          '{ wave: "sawtooth", from: 150, to: 160, at: 0.79, dur: 0.34, gain: 0.25, attack: 0.05, cutoff: 700 },' in text_b
+          and text_b.count("cutoff") == 3 and "volume: 0.55," in text_b, text_b[:500])
+    r = play_contamination()
+    check("hum: B plays three sawtooths through three low-pass filters", r == {"filters": 3, "waves": ["sawtooth"] * 3}, r)
+    check("hum: A and B differ only in the contamination sound", text_a.split("defense: [")[1] == text_b.split("defense: [")[1]
+          and text_a.split("contamination: [")[0] == text_b.split("contamination: [")[0])
+    row = pg.locator("section", has=pg.locator("h2", has_text="contamination")).locator("tr").nth(1)
+    row.locator("input.opt").first.fill(""); row.locator("input.opt").first.dispatch_event("change")
+    check("hum: clearing a cutoff takes it out of the settings", pg.evaluate("window.__settingsText()").count("cutoff") == 2)
+    widths = pg.evaluate("[...document.querySelectorAll('section')].map(s => s.scrollWidth - s.clientWidth)")
+    check("hum: the tuning page's rows fit their boxes", max(widths) <= 0 and not errs, (widths, errs))
+    pg.close()
+    tile_html = open(os.path.join(ROOT, "tile", "index.html"), encoding="utf-8").read()
+    check("hum: the tile's own sounds unchanged this round (triangles at 170 Hz, 0.07; volume 0.5)",
+          '{ wave: "triangle", from: 170, to: 180, at: 0.1, dur: 0.34, gain: 0.07, attack: 0.05 },' in tile_html and "    volume: 0.5,\n" in tile_html)
 
     # ---- proportions (CT22): the tally and buttons scale with the dice ----
     for (w, h) in [(380, 540), (456, 658), (300, 250)]:
