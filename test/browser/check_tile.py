@@ -362,6 +362,26 @@ with sync_playwright() as p:
     check("guest: 'Playing as a guest'", f.locator("#who").inner_text() == "Playing as a guest")
     pg.close()
 
+    # a host that doesn't tell the game who plays (as Raku, honouring identity "none")
+    pg, f, errors = host_page("?blind=1")
+    pg.wait_for_function("window.messages.some((m) => m.kind === 'can-save')")
+    check("blind host: the bar says 'Contagion doesn't see your account'", f.locator("#who").inner_text() == "Contagion doesn't see your account", f.locator("#who").inner_text())
+    check("blind host: no player message sent", not pg.evaluate("window.messages.some((m) => m.kind === 'player')"))
+    f.locator("#freeBtn").click(); f.locator("#rollBtn").click()
+    play(f, bank_after=0)
+    check("blind host: saving still offered", f.locator("#saveBtn").is_visible())
+    pg.close()
+    for (w, h) in [(300, 250), (340, 300)]:
+        pg = browser.new_page(viewport={"width": w + 40, "height": h + 40})
+        pg.goto(f"{BASE}/test/browser/host.html?blind=1")
+        pg.evaluate(f"() => {{ const i = document.querySelector('#game'); i.style.width = '{w}px'; i.style.height = '{h}px'; }}")
+        f = pg.frame_locator("#game")
+        f.locator("#rollBtn").wait_for()
+        pg.wait_for_timeout(500)
+        fits = f.locator("#bar").evaluate("(b) => b.scrollWidth <= b.clientWidth + 1 && b.getBoundingClientRect().bottom <= innerHeight + 0.5")
+        check(f"blind host at {w}x{h}: the bar's line fits (shortened with … if needed)", fits)
+        pg.close()
+
     # help
     pg = browser.new_page(viewport={"width": 300, "height": 250})
     pg.goto(f"{BASE}/tile/index.html")

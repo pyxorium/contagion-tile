@@ -24,7 +24,8 @@
   falling or deflating end (contained, failed, nothing left to keep). On by default; the speaker in the bar mutes it.
 
   HOST: the Game Host Kit (game-client.js, an exact copy of the kit's). Who's playing and Save show only when the
-  host offers them; on its own the game just plays. The character spot (#character) is kept empty for now.
+  host offers them; on its own the game just plays. A host that answers without offering who's playing (Raku, which
+  honours the declaration's identity "none") gets "Contagion doesn't see your account" in the bar instead. The character spot (#character) is kept empty for now.
 
   CSP: no network; WebAssembly allowed.
 -->
@@ -765,6 +766,9 @@ function updateSave() {
 }
 host.on("offers", () => { if (!$("endPanel").hidden) updateSave(); });
 host.on("player", (p) => { $("who").textContent = p ? `Playing as @${p.handle || p.did}` : "Playing as a guest"; });
+// A host that answers but doesn't offer who's playing (Raku, honouring the declaration's identity "none", CT9): say so,
+// where "Playing as" would be. On its own (no host) the bar says nothing.
+host.on("offers", (offers) => { if (offers.size && !offers.has("player")) $("who").textContent = "Contagion doesn't see your account"; });
 // The character spot (#character) is kept for later; Contagion doesn't show a character yet.
 
 $("saveBtn").addEventListener("click", async () => {

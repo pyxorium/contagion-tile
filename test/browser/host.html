@@ -27,7 +27,7 @@
 // expects them) in a plain iframe, and checks each game by asking the tile's own engine the standard question
 // before asking the player, as Raku will.
 //   ?save=0  a host that saves for other games but not Contagion       ?who=none  no one signed in
-//   ?tile=…  extra query for the tile page (e.g. seed=5)
+//   ?tile=…  extra query for the tile page (e.g. seed=5)      ?blind=1  a host that, like Raku, doesn't tell the game who plays
 import { loadEngine } from "/tile/engine.js";
 import { checkRecord, COLLECTION } from "/tile/contagion-record.js";
 
@@ -47,8 +47,9 @@ window.addEventListener("message", (e) => {
   const m = e.data;
   log("in", m);
   if (m.kind === "hello") {
-    send({ kind: "host", v: 1, offers: ["player", "save", "open-record"] });
-    send(PLAYER ? { kind: "player", did: PLAYER.did, handle: PLAYER.handle } : { kind: "player", did: null });
+    const blind = params.get("blind") === "1";
+    send({ kind: "host", v: 1, offers: blind ? ["save", "open-record"] : ["player", "save", "open-record"] });
+    if (!blind) send(PLAYER ? { kind: "player", did: PLAYER.did, handle: PLAYER.handle } : { kind: "player", did: null });
     send({ kind: "can-save", collections: params.get("save") === "0" ? ["com.example.other"] : [COLLECTION] });
   } else if (m.kind === "open-record") {
     window.opened = m.uri;
