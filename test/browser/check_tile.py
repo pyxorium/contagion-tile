@@ -231,8 +231,9 @@ with sync_playwright() as p:
     check("hum: the tuning page's rows fit their boxes", max(widths) <= 0 and not errs, (widths, errs))
     pg.close()
     tile_html = open(os.path.join(ROOT, "tile", "index.html"), encoding="utf-8").read()
-    check("hum: the tile's own sounds unchanged this round (triangles at 170 Hz, 0.07; volume 0.5)",
-          '{ wave: "triangle", from: 170, to: 180, at: 0.1, dur: 0.34, gain: 0.07, attack: 0.05 },' in tile_html and "    volume: 0.5,\n" in tile_html)
+    check("hum: the tile's own sounds are A (triangles at 150 to 160 Hz, 0.5; volume 0.55), the tuning page's A exactly",
+          text_a in tile_html and '{ wave: "triangle", from: 150, to: 160, at: 0.1, dur: 0.34, gain: 0.5, attack: 0.05 },' in tile_html
+          and "    volume: 0.55,\n" in tile_html and "cutoff:" not in tile_html.split("// ==== SOUND ENGINE END")[0].split("const SOUND_SETTINGS")[1].split("function createSoundEngine")[0])
 
     # ---- proportions (CT22): the tally and buttons scale with the dice ----
     for (w, h) in [(380, 540), (456, 658), (300, 250)]:

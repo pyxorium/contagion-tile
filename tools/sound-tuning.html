@@ -64,7 +64,7 @@
   // keeps them the same) to play and adjust each sound; its "Copy settings" gives the text to
   // paste over SOUND_SETTINGS.
   const SOUND_SETTINGS = {
-    volume: 0.5,
+    volume: 0.55,
     sounds: {
       roll: [
         { wave: "noise", from: 2600, to: 1400, at: 0, dur: 0.09, gain: 0.16, attack: 0.002 },
@@ -75,9 +75,9 @@
         { wave: "triangle", from: 180, to: 120, at: 0.95, dur: 0.12, gain: 0.12, attack: 0.003 },
       ],
       contamination: [
-        { wave: "triangle", from: 170, to: 180, at: 0.1, dur: 0.34, gain: 0.07, attack: 0.05 },
-        { wave: "triangle", from: 170, to: 180, at: 0.79, dur: 0.34, gain: 0.07, attack: 0.05 },
-        { wave: "triangle", from: 170, to: 180, at: 1.47, dur: 0.4, gain: 0.07, attack: 0.05 },
+        { wave: "triangle", from: 150, to: 160, at: 0.1, dur: 0.34, gain: 0.5, attack: 0.05 },
+        { wave: "triangle", from: 150, to: 160, at: 0.79, dur: 0.34, gain: 0.5, attack: 0.05 },
+        { wave: "triangle", from: 150, to: 160, at: 1.47, dur: 0.4, gain: 0.5, attack: 0.05 },
       ],
       defense: [
         { wave: "sine", from: 1318.5, to: 1318.5, at: 0, dur: 0.35, gain: 0.14, attack: 0.004 },
@@ -269,6 +269,7 @@
   // The 🦠 hum round (Nov 24): two versions ready to compare with "Use A" / "Use B". Both have the volume 10% up
   // (0.5 to 0.55) and every other sound as the tile's.
   //   A: the owner's hum from the tuning page: three triangles at 150 to 160 Hz, gain 0.5 (the 450 Hz sines dropped).
+  //      Chosen by the owner (the difference between headphones and the Surface's speakers): now the tile's own.
   //   B: a filtered sawtooth at the same pitch and timings: low-pass at 700 Hz (try 300 to 1200: lower is warmer and
   //      closer to A, higher is buzzier and louder on small speakers), gain 0.25.
   const hum = (wave, gain, extra) => [[0.1, 0.34], [0.79, 0.34], [1.47, 0.4]].map(([at, dur]) =>
@@ -281,7 +282,7 @@
   }
   settings = JSON.parse(JSON.stringify(kept.A));
   draw();
-  note("Using A (the triangle hum). B is the filtered sawtooth: press Use B. Both have the volume at 0.55.");
+  note("Using A (the triangle hum, now the tile's own). B is the filtered sawtooth: press Use B.");
 })();
 </script>
 </body>
