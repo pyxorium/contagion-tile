@@ -13,10 +13,10 @@
   },
   "tile": {
     "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3n33t44ehtksx",
-    "cid": "bafyreifof7imxh4jtvlfhgu7swxfkts7an432q5tc6gztqo2odgmafsb5i",
-    "manifestCid": "bafyreibumjhbqyb5lsgd4np5iju4sluzhcgrys74lvjxuq4hfj2dfcuhta",
+    "cid": "bafyreiahhuwrtzj3ikbvle4rft2ziblj6c4ermmyi6f7dh4hy236fu5iiq",
+    "manifestCid": "bafyreichfmmcoyiumknvidqa565jj3lbrkvgu4goj2unfa4szorigcepyu",
     "files": {
-      "/": "bafkreidvsoslti3bp6hugqdl4nybc2t2dantsxzphmmiz6bhm2psaonjau",
+      "/": "bafkreidcxxdggj5th6wnkxhmswhm35yeyk47f6wpjrkt3bfhon7ihbff4e",
       "/engine.wasm": "bafkreifms2aawbaemihyu7jnvk6zmpv3iuxsqcsjozo7brvdk5j4t5vrta",
       "/engine.js": "bafkreihrgxktk5lzxkwumyth6ct54qjsojeqkkzx7ulktdjarhvzn45jdy",
       "/contagion-record.js": "bafkreibpwun3e5fvn6cpuebdp2buimtjtx2khx52jhymx5n2yo72jkcgwe",
@@ -26,11 +26,29 @@
       "/icon.png": "bafkreidquggcnlipv44tjjxeecjswtndfrhoriezn7w4hsah5q5tzu5hza",
       "/banner.jpg": "bafkreib6cbmbxvrfj7rnncuss4rqlk235c6iswr3mmdg74gd3nnaivmaxq"
     },
-    "publishedAt": "2026-11-24T23:42:41.698Z",
+    "revisedAt": "2026-11-25T00:48:38.338Z",
     "engine": "bafkreifms2aawbaemihyu7jnvk6zmpv3iuxsqcsjozo7brvdk5j4t5vrta",
     "declaration": "bafkreicrfhdcr73nzby6z2xnvfz76q5kfyavhwoo3wu6kgokqbdw4frwqi",
     "lexicon": "bafkreihovgusssrmfxf7zjko2e36fpkrdr3m7r7zvccxd7hrvgdzdkrrwq",
     "raku": "https://raku.lexicographer.space/#t=at%3A%2F%2Fdid%3Aplc%3A6vxjigxrqizmbo56gojxico3%2Fing.dasl.masl%2F3n33t44ehtksx&a=0",
-    "earlier": []
+    "earlier": [
+      {
+        "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3n33t44ehtksx",
+        "cid": "bafyreifof7imxh4jtvlfhgu7swxfkts7an432q5tc6gztqo2odgmafsb5i",
+        "manifestCid": "bafyreibumjhbqyb5lsgd4np5iju4sluzhcgrys74lvjxuq4hfj2dfcuhta",
+        "files": {
+          "/": "bafkreidvsoslti3bp6hugqdl4nybc2t2dantsxzphmmiz6bhm2psaonjau",
+          "/icon.png": "bafkreidquggcnlipv44tjjxeecjswtndfrhoriezn7w4hsah5q5tzu5hza",
+          "/engine.js": "bafkreihrgxktk5lzxkwumyth6ct54qjsojeqkkzx7ulktdjarhvzn45jdy",
+          "/banner.jpg": "bafkreib6cbmbxvrfj7rnncuss4rqlk235c6iswr3mmdg74gd3nnaivmaxq",
+          "/engine.wasm": "bafkreifms2aawbaemihyu7jnvk6zmpv3iuxsqcsjozo7brvdk5j4t5vrta",
+          "/game-client.js": "bafkreic6y74yidlzxx37uzspyd5hx7jitfucfncvxhzdfgt4rz2y5fcgwa",
+          "/declaration.json": "bafkreicrfhdcr73nzby6z2xnvfz76q5kfyavhwoo3wu6kgokqbdw4frwqi",
+          "/contagion-record.js": "bafkreibpwun3e5fvn6cpuebdp2buimtjtx2khx52jhymx5n2yo72jkcgwe",
+          "/cafe.thunderbird.contagion.game.json": "bafkreihovgusssrmfxf7zjko2e36fpkrdr3m7r7zvccxd7hrvgdzdkrrwq"
+        },
+        "replacedAt": "2026-11-25T00:48:38.338Z"
+      }
+    ]
   }
 }
